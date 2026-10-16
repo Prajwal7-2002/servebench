@@ -115,7 +115,10 @@ chunk counts.
   This is how you find the point where a server falls over.
 
 Each level gets `--num-requests` requests (default `max(16, 4N)` for concurrency, 64 for
-rate). Two warm-up requests run first and are not measured. Everything is seeded.
+rate). Two warm-up requests run first and are not measured. Each run uses a new random
+prompt seed (printed and saved in run.json): with a fixed seed, a second run sends the same
+prompts and a server with prompt caching skips prefill (on Ollama TTFT dropped from 43 ms to
+20 ms), so you would measure the cache. Pass `--seed N` to repeat a run exactly.
 
 ## Find capacity
 

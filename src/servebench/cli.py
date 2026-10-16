@@ -7,6 +7,7 @@ import json
 import math
 import os
 import platform
+import random
 import sys
 import urllib.request
 from collections.abc import Callable
@@ -88,7 +89,9 @@ IgnoreEos = Annotated[bool, typer.Option(
     help="Ask the server to always generate output-len tokens")]
 Temperature = Annotated[float, typer.Option()]
 Warmup = Annotated[int, typer.Option(help="Warm-up requests, not measured")]
-Seed = Annotated[int, typer.Option()]
+Seed = Annotated[int | None, typer.Option(
+    help="Prompt seed; default: a new random one per run (printed and saved), so a "
+         "rerun doesn't hit the server's prompt cache. Pass it to repeat a run exactly")]
 Timeout = Annotated[float, typer.Option(help="Per-request timeout in seconds")]
 SloTtft = Annotated[float | None, typer.Option(help="SLO on TTFT (goodput, capacity)")]
 SloTpot = Annotated[float | None, typer.Option(help="SLO on TPOT (goodput, capacity)")]
@@ -128,6 +131,12 @@ def _setup(*, url, model, mode, levels, max_concurrency, num_requests, duration,
         raise typer.BadParameter("--endpoint must be 'chat' or 'completions'")
     if duration is not None and duration <= 0:
         raise typer.BadParameter("--duration must be a positive number of seconds")
+    if seed is None:
+        # Fresh prompts each run: with a fixed default seed, a second run sends the same
+        # prompts and servers with prompt/prefix caching (Ollama, llama.cpp, vLLM) skip
+        # prefill. Measured: TTFT 43 ms fresh vs 20 ms repeated on Ollama.
+        seed = random.SystemRandom().randrange(1, 2**31)
+        console.print(f"[dim]seed {seed} (--seed {seed} repeats these exact prompts)[/dim]")
     cfg = RunConfig(
         url=url, model=model, endpoint=endpoint, prompts=prompts, input_len=input_len,
         output_len=output_len, mode=mode, levels=levels, max_concurrency=max_concurrency,
@@ -200,7 +209,7 @@ def run(
     ignore_eos: IgnoreEos = True,
     temperature: Temperature = 0.0,
     warmup: Warmup = 2,
-    seed: Seed = 0,
+    seed: Seed = None,
     timeout: Timeout = 300.0,
     slo_ttft_ms: SloTtft = 500.0,
     slo_tpot_ms: SloTpot = 50.0,
@@ -232,7 +241,7 @@ def run(
         levels_out = asyncio.run(run_sweep(
             st.spec, st.prompts_for, mode, levels, num_requests, duration=duration,
             warmup_requests=warmup,
-            timeout=timeout, seed=seed, max_concurrency=max_concurrency,
+            timeout=timeout, seed=st.cfg.seed, max_concurrency=max_concurrency,
             slo_ttft_ms=slo_ttft_ms, slo_tpot_ms=slo_tpot_ms, counter=st.counter,
             on_level=_print_level,
         ))
@@ -266,7 +275,7 @@ def find_capacity_cmd(
     ignore_eos: IgnoreEos = True,
     temperature: Temperature = 0.0,
     warmup: Warmup = 2,
-    seed: Seed = 0,
+    seed: Seed = None,
     timeout: Timeout = 300.0,
     slo_ttft_ms: SloTtft = 500.0,
     slo_tpot_ms: SloTpot = 50.0,
@@ -388,7 +397,7 @@ def quick(
                 max_concurrency=None, num_requests=quick_mod.QUICK_REQUESTS_PER_LEVEL,
                 duration=None, input_len=quick_mod.QUICK_INPUT_LEN,
                 output_len=quick_mod.QUICK_OUTPUT_LEN, prompts="synthetic", endpoint="chat",
-                ignore_eos=True, temperature=0.0, warmup=2, seed=0, timeout=120.0,
+                ignore_eos=True, temperature=0.0, warmup=2, seed=None, timeout=120.0,
                 slo_ttft_ms=slo_ttft_ms, slo_tpot_ms=slo_tpot_ms, tokenizer=None,
                 api_key=api_key, notes="servebench quick")
     from .report import machine_text

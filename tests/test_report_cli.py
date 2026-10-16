@@ -207,3 +207,21 @@ def test_cli_duration(server, tmp_path):
     res = runner.invoke(app, ["run", "--url", server.url, "--model", "mock-model",
                               "--rate", "inf", "--duration", "1"])
     assert res.exit_code != 0 and "finite rates" in res.output
+
+
+def test_each_run_gets_fresh_prompts_unless_seeded(server, tmp_path):
+    # a fixed default seed made a second run hit the server's prompt cache (Ollama: TTFT
+    # 43 ms fresh vs 20 ms repeated), so the default is a new random seed per run
+    server.cfg.ttft, server.cfg.itl = 0.01, 0.002
+    args = ["run", "--url", server.url, "--model", "mock-model", "--concurrency", "1",
+            "--num-requests", "1", "--output-len", "2", "--warmup", "0"]
+    seeds = []
+    for i in range(2):
+        out = tmp_path / f"r{i}.json"
+        res = runner.invoke(app, [*args, "--out", str(out)])
+        assert res.exit_code == 0 and "--seed" in res.output
+        seeds.append(load_run(out).config.seed)
+    assert seeds[0] != seeds[1]
+    out = tmp_path / "fixed.json"
+    res = runner.invoke(app, [*args, "--seed", "42", "--out", str(out)])
+    assert load_run(out).config.seed == 42 and "repeats these exact prompts" not in res.output
