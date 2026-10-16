@@ -15,3 +15,14 @@
 - Dolly-15k: downloaded at runtime (12.8 MB) into `~/.cache/servebench`, never bundled.
 - Next: M4 real runs (Ollama + llama.cpp on the laptop, vLLM on Kaggle T4). Before the
   release, check the current state of vllm bench serve, GenAI-Perf, guidellm, LLMPerf.
+
+## 2026-10-16: find-capacity
+
+- `servebench find-capacity`: doubling then binary search for the highest load where no
+  request fails and 90% meet the SLOs. Search logic is a pure function over a `probe`
+  callback, so it is unit-tested without a server; CLI options now shared between commands.
+- Check against the fake server (TPOT = 15 ms x (1 + 0.15 (N-1)), SLO TPOT < 40 ms): found
+  12, the analytic answer, in 8 levels.
+- First integration test used a 10 ms margin around the SLO and found 3 instead of 4: first-
+  round connection setup and timer jitter add ~10-20 ms on Windows. Widened to 25 ms.
+- One unexplained failure in 11 full-suite runs; could not reproduce in 9 reruns. Watch CI.

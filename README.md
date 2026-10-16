@@ -78,6 +78,39 @@ chunk counts.
 Each level gets `--num-requests` requests (default `max(16, 4N)` for concurrency, 64 for
 rate). Two warm-up requests run first and are not measured. Everything is seeded.
 
+## Find capacity
+
+`find-capacity` answers "how much load can this server take within my latency targets?"
+with one number:
+
+```bash
+servebench find-capacity --url http://127.0.0.1:8000/v1 --model fake-model \
+    --output-len 64 --slo-ttft-ms 300 --slo-tpot-ms 40 --out runs/fake-cap.json
+```
+```
+         c=8  32 ok, 0 failed, 242.8 tok/s, TTFT p50 167 ms, 100% in SLO  -> pass
+        c=16  64 ok, 0 failed, 306.4 tok/s, TTFT p50 263 ms, 19% in SLO  -> FAIL
+        c=12  48 ok, 0 failed, 281.7 tok/s, TTFT p50 216 ms, 100% in SLO  -> pass
+        c=14  56 ok, 0 failed, 295.2 tok/s, TTFT p50 239 ms, 21% in SLO  -> FAIL
+        c=13  52 ok, 0 failed, 288.9 tok/s, TTFT p50 227 ms, 23% in SLO  -> FAIL
+...
+Capacity: 12 concurrent requests. At 12, 100% met the SLO; at 13, only 23%.
+SLO: TTFT < 300 ms and TPOT < 40 ms for 90% of requests.
+```
+
+(The fake server's TPOT is 15 ms × (1 + 0.15 × (N − 1)), which crosses 40 ms just above
+N = 12, so 12 is the right answer.)
+
+- A level **passes** when no request failed and at least `--target` (default 90%) of the
+  requests met `--slo-ttft-ms` and `--slo-tpot-ms`.
+- The search doubles the load from `--start` (1, 2, 4, 8, ...) until a level fails, then
+  binary-searches between the last pass and the first fail until the gap is within
+  `--tolerance` (10%) of the passing value. It never goes above `--max` (256).
+- `--mode rate` searches Poisson arrival rates (req/s) instead of concurrency.
+- Every level it tried is saved, so `servebench report` charts it like any sweep.
+- Each level is measured once and the search assumes latency grows with load. Near the
+  limit a noisy server can pass a level above one that failed; rerun to confirm.
+
 ## Prompts
 
 - `--prompts synthetic` (default): `--input-len` tokens of random common words, a different
