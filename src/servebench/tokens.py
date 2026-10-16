@@ -20,7 +20,7 @@ def load_tokenizer(name: str):
         from transformers import AutoTokenizer
     except ImportError as e:  # pragma: no cover - depends on optional extra
         raise RuntimeError(
-            "--tokenizer needs the Hugging Face tokenizer: pip install 'servebench[hf]'"
+            "--tokenizer needs the Hugging Face tokenizer: install the extra: servebench[hf]"
         ) from e
     return AutoTokenizer.from_pretrained(name)
 

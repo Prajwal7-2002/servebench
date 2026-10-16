@@ -1,6 +1,6 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["uv_build>=0.12,<0.13"]
+build-backend = "uv_build"
 
 [project]
 name = "servebench"
@@ -30,6 +30,9 @@ dependencies = [
 [project.optional-dependencies]
 fake = ["fastapi>=0.110", "uvicorn>=0.29"]
 hf = ["transformers>=4.40"]
+
+[dependency-groups]
+# `uv sync` installs this group by default
 dev = ["fastapi>=0.110", "uvicorn>=0.29", "pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.5"]
 
 [project.scripts]
@@ -38,9 +41,6 @@ servebench = "servebench.cli:app"
 [project.urls]
 Homepage = "https://github.com/Prajwal7-2002/servebench"
 Issues = "https://github.com/Prajwal7-2002/servebench/issues"
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/servebench"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

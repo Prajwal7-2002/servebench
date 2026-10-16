@@ -2,7 +2,7 @@
 
 Used by the tests to check every metric against delays we set, and handy for trying
 servebench without a model: `servebench fake-server --ttft-ms 200 --itl-ms 30`.
-Needs `pip install 'servebench[fake]'`.
+Needs `install the extra: servebench[fake]`.
 
 Timing model for each request, with `active` = requests in flight when it starts:
     TTFT = ttft * (1 + slowdown * (active - 1))

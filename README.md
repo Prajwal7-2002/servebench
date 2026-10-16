@@ -13,8 +13,10 @@ No GPU or engine install is needed on the client: it is one async Python process
 
 ## Quickstart
 
+Uses [uv](https://docs.astral.sh/uv/). PyPI release coming; for now, from a clone:
+
 ```bash
-pip install -e ".[fake]"            # PyPI release coming; for now install from a clone
+uv tool install --from . "servebench[fake]"   # puts `servebench` on your PATH
 
 # try it with no model at all: a fake server with known timings
 servebench fake-server --ttft-ms 80 --itl-ms 15 --slowdown 0.15 &
@@ -61,7 +63,7 @@ Full report: [examples/report.md](examples/report.md).
 
 Token counts come from the server's `usage` (requested with `stream_options.include_usage`).
 If the server sends none, servebench counts with a Hugging Face tokenizer if you pass
-`--tokenizer Qwen/Qwen2.5-0.5B-Instruct` (`pip install servebench[hf]`), or falls back to
+`--tokenizer Qwen/Qwen2.5-0.5B-Instruct` (install the `hf` extra: `servebench[hf]`), or falls back to
 counting chunks. Every request records which source was used, and the report warns about
 chunk counts.
 
@@ -138,10 +140,12 @@ comparisons, and is used to measure the rest of this series of projects on free 
 ## Development
 
 ```bash
-python -m venv .venv && .venv/Scripts/activate   # or source .venv/bin/activate
-pip install -e ".[dev]"
-ruff check src tests && pytest -q
+uv sync                      # creates .venv and installs the package + dev tools
+uv run ruff check src tests
+uv run pytest -q
 ```
+
+No need to create or activate a virtualenv yourself; `uv run` uses the project's `.venv`.
 
 ## License
 
