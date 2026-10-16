@@ -13,7 +13,7 @@ from pydantic import ValidationError
 from rich.console import Console
 from rich.table import Table
 
-from .metrics import summarize
+from .metrics import percentile, summarize
 from .results import SCHEMA_VERSION, LevelResult, RunResult, Summary
 
 
@@ -181,7 +181,32 @@ def warnings_for(run: RunResult) -> list[str]:
         if lv.summary.errors:
             errs = ", ".join(f"{k} x{v}" for k, v in lv.summary.errors.items())
             out.append(f"{lv.label}: errors: {errs}")
+        if stall := find_stall(lv):
+            index, worst, median = stall
+            out.append(f"{lv.label}: request {index} stalled {worst:.1f} s between two tokens "
+                       f"(typical gap {median * 1000:.0f} ms). That is the server pausing "
+                       "(GPU/driver power state, another app on the GPU, memory swapping); "
+                       "this level's averages include it. Rerun to confirm.")
     return out
+
+
+def find_stall(lv: LevelResult) -> tuple[int, float, float] | None:
+    """(request index, worst gap, median gap) if one token gap is far beyond normal: over 5 s
+    and over 50x the median. Seen for real: Ollama paused 288 s mid-answer on a laptop GPU
+    (its own log said 2280 ms/token for that request vs 5 ms for the rest)."""
+    worst, index = 0.0, -1
+    gaps: list[float] = []
+    for r in lv.requests:
+        if r.ok and r.itls:
+            gaps += r.itls
+            if (m := max(r.itls)) > worst:
+                worst, index = m, r.index
+    if not gaps:
+        return None
+    median = percentile(sorted(gaps), 50)
+    if worst > 5.0 and worst > 50 * median:
+        return index, worst, median
+    return None
 
 
 def print_run(run: RunResult, console: Console | None = None) -> None:
