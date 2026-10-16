@@ -41,3 +41,8 @@
 - Real finding: Ollama with default settings serves one request at a time here. c=2 gives
   the same 196-199 tok/s as c=1 and TTFT 686 ms (= one full request). Capacity under
   TTFT < 500 ms / TPOT < 50 ms: 1 concurrent request. Next: OLLAMA_NUM_PARALLEL=4.
+- OLLAMA_NUM_PARALLEL=4 (same GPU, model, prompts 256 in / 128 out): capacity 1 -> 4,
+  exactly the slot count. Throughput at c=4: 430 tok/s vs 196-199 tok/s default (2.2x);
+  TPOT rises 4.8 -> 8.2 ms as 4 streams share the GPU, still far under 50 ms. Above 4,
+  requests queue for a slot: TTFT p99 0.8-1.5 s. c=5/c=6 points are noisy (20-24 requests
+  over 4 slots); more requests per level needed for a publishable chart.
