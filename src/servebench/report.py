@@ -63,6 +63,11 @@ def _num(x: float | None, digits: int = 1) -> str:
 
 COLUMNS = ["load", "ok/fail", "req/s", "out tok/s", "TTFT p50", "TTFT p99", "TPOT p50",
            "TPOT p99", "ITL p50", "E2E p50 (s)", "goodput", "tok/chunk"]
+# The terminal table drops ITL p50 (equal to TPOT at one token per chunk; it stays in
+# run.json and the MD/HTML reports) so it fits 80 columns even with 5-digit latencies.
+TERMINAL_COLUMNS = ["load", "ok/\nfail", "req/s", "out\ntok/s", "TTFT\np50", "TTFT\np99",
+                    "TPOT\np50", "TPOT\np99", "E2E\np50 s", "good-\nput", "tok/\nchunk"]
+_TERMINAL_SKIP = COLUMNS.index("ITL p50")
 
 
 def level_row(lv: LevelResult) -> list[str]:
@@ -104,11 +109,15 @@ def warnings_for(run: RunResult) -> list[str]:
 def print_run(run: RunResult, console: Console | None = None) -> None:
     console = console or Console()
     c = run.config
-    table = Table(title=f"{run.label}  ({c.model} @ {c.url})", title_justify="left")
-    for col in COLUMNS:
-        table.add_column(col, justify="left" if col == "load" else "right")
+    # no borders and two-line headers keep it inside 80 characters; only headers may wrap,
+    # numbers never get cut to "108…" or split across lines
+    table = Table(title=f"{run.label}  ({c.model} @ {c.url})", title_justify="left",
+                  box=None, pad_edge=False, header_style="bold underline")
+    for col in TERMINAL_COLUMNS:
+        table.add_column(col, justify="left" if col == "load" else "right", no_wrap=True)
     for lv in run.levels:
-        table.add_row(*level_row(lv))
+        row = level_row(lv)
+        table.add_row(*row[:_TERMINAL_SKIP], *row[_TERMINAL_SKIP + 1:])
     console.print(table)
     if run.levels:
         console.print(f"[dim]Latencies in ms unless noted. Goodput = req/s meeting "

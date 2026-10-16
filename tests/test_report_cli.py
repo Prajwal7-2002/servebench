@@ -91,3 +91,20 @@ def test_cli_run_and_report_against_fake_server(fake, tmp_path):
 def test_cli_needs_exactly_one_mode():
     res = runner.invoke(app, ["run", "--url", "http://x/v1", "--model", "m"])
     assert res.exit_code != 0
+
+
+@pytest.mark.parametrize("width", [80, 88])
+def test_terminal_table_never_truncates_numbers(width):
+    from rich.console import Console
+
+    from servebench.report import print_run
+
+    # big values on purpose: 5-digit latencies and throughput, like a server under overload
+    run = fake_run("a-fairly-long-run-label", levels=(1, 16, 128))
+    run.levels[-1].summary.output_throughput = 12345.6
+    console = Console(width=width, record=True)
+    print_run(run, console)
+    text = console.export_text()
+    assert "…" not in text  # no ellipsis anywhere
+    lines = text.splitlines()
+    assert any("c=128" in ln and "12345.6" in ln and "12809" in ln for ln in lines)
