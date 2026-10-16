@@ -33,21 +33,38 @@ servebench report runs/ollama.json runs/llamacpp.json --out report.html
 
 ## Results
 
-Real runs (Ollama and llama.cpp on a laptop CPU, vLLM on a free Kaggle T4, all with
-Qwen2.5-0.5B) are next on the list (milestone M4). Until then, here is the report for two
-fake servers with known behaviour, which is also how the metrics are tested:
+### Ollama on a laptop GPU: what `OLLAMA_NUM_PARALLEL` buys
 
-![Latency and throughput vs load for two fake servers](examples/report_files/sweep.png)
+Qwen2.5-0.5B (Q4_K_M) on Ollama 0.35.1, fully on an RTX 3050 6 GB laptop GPU. Synthetic
+prompts of 256 tokens, 128 output tokens, 64 requests per level, `find-capacity` with
+SLO TTFT < 500 ms and TPOT < 50 ms for 90% of requests. Only `OLLAMA_NUM_PARALLEL` changes.
 
-| fake-A load | req/s | out tok/s | TTFT p50 (ms) | TPOT p50 (ms) | E2E p50 (s) |
-|---|---|---|---|---|---|
-| c=1 | 0.97 | 62.1 | 84 | 15 | 1.03 |
-| c=4 | 2.68 | 171.5 | 119 | 22 | 1.49 |
-| c=16 | 4.79 | 306.3 | 263 | 49 | 3.34 |
+![TTFT, TPOT, throughput and E2E latency vs concurrent requests for 1, 4 and 8 Ollama slots](results/ollama-parallel_files/sweep.png)
 
-fake-A was set to TTFT 80 ms, 15 ms per token, slowing down 15% per extra request in flight,
-so at c=16 TPOT should be 15 × (1 + 0.15 × 15) ≈ 49 ms, which is what was measured.
-Full report: [examples/report.md](examples/report.md).
+| Slots | Capacity (concurrent requests) | Completed req/s at capacity | Output tok/s | TTFT p50 / p99 | TPOT p50 | E2E p50 |
+|---|---|---|---|---|---|---|
+| 1 | 1 | 1.51 | 190 | 45 / 59 ms | 4.9 ms | 0.67 s |
+| 4 | 4 | 3.16 | 385 | 101 / 197 ms | 9.4 ms | 1.30 s |
+| 8 | 8 | 3.30 | 400 | 224 / 386 ms | 16 ms | 2.22 s |
+
+- **Capacity follows the slot count exactly.** With one slot, a second request waits for the
+  whole first answer (TTFT 688 ms at c=2), so only one user fits the SLO.
+- **The GPU saturates at about 400 tok/s with 4 streams.** Going from 4 to 8 slots doubles
+  the users who fit the SLO, but finishes only 4% more requests per second; each answer
+  takes 71% longer (TPOT 9.4 → 16 ms) because the same GPU time is split more ways.
+- So for this model and GPU, 4 slots maximise work done; 8 slots only help if you need more
+  simultaneous users within the TTFT target and can accept slower answers.
+
+Full report with every level: [results/ollama-parallel.md](results/ollama-parallel.md).
+Raw data: `results/ollama-np{1,4,8}.json` (every request's timings). Next: llama.cpp server
+on the same GPU, and vLLM on a free Kaggle T4.
+
+### Checked against a fake server
+
+The metrics are tested against `servebench fake-server`, which streams with known delays. A
+fake server set to TTFT 80 ms, 15 ms per token and 15% slowdown per extra request in flight
+should show TPOT 15 × (1 + 0.15 × 15) ≈ 49 ms at 16 concurrent requests, which is what
+servebench measures ([examples/report.md](examples/report.md)).
 
 ## Metrics
 

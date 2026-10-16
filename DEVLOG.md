@@ -46,3 +46,11 @@
   TPOT rises 4.8 -> 8.2 ms as 4 streams share the GPU, still far under 50 ms. Above 4,
   requests queue for a slot: TTFT p99 0.8-1.5 s. c=5/c=6 points are noisy (20-24 requests
   over 4 slots); more requests per level needed for a publishable chart.
+
+## 2026-10-16: Ollama 1 / 4 / 8 slots, 64 requests per level
+
+- Capacity = slots (1, 4, 8). Completed req/s at capacity: 1.51, 3.16, 3.30; GPU saturates
+  at ~400 tok/s with 4 streams. 8 slots: 2x the users within the SLO, +4% req/s, +71% E2E.
+  Blog angle: "more slots" buys admission, not throughput, once the GPU is busy.
+- find-capacity's 8, 9, 10, 12 levels made tick labels collide; log-axis labels now skip a
+  value within 1.2x of the previous label. `report` on a missing file: clean error.
