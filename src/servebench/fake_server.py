@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -48,9 +48,11 @@ class FakeStats:
     active: int = 0
     peak: int = 0
     total: int = 0
+    peers: set = field(default_factory=set)  # client (host, port) pairs = TCP connections seen
 
     def reset(self) -> None:
         self.active = self.peak = self.total = 0
+        self.peers.clear()
 
 
 def create_app(cfg: FakeConfig | None = None) -> FastAPI:
@@ -65,7 +67,8 @@ def create_app(cfg: FakeConfig | None = None) -> FastAPI:
     @app.get("/stats")
     async def get_stats():
         s = app.state.stats
-        return {"active": s.active, "peak": s.peak, "total": s.total}
+        return {"active": s.active, "peak": s.peak, "total": s.total,
+                "connections": len(s.peers)}
 
     async def handle(request: Request, chat: bool):
         cfg: FakeConfig = app.state.cfg
@@ -78,6 +81,8 @@ def create_app(cfg: FakeConfig | None = None) -> FastAPI:
         stats: FakeStats = app.state.stats
         stats.active += 1
         stats.total += 1
+        if request.client:
+            stats.peers.add((request.client.host, request.client.port))
         stats.peak = max(stats.peak, stats.active)
         factor = 1 + cfg.slowdown * (stats.active - 1)
         created = int(time.time())

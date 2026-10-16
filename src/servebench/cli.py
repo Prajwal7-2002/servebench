@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
+from urllib.parse import urlparse
 
 import httpx
 import typer
@@ -127,6 +128,10 @@ def _setup(*, url, model, mode, levels, max_concurrency, num_requests, input_len
     spec = RequestSpec(url=url, model=model, endpoint=endpoint, output_len=output_len,
                        ignore_eos=ignore_eos, temperature=temperature, api_key=api_key)
 
+    if urlparse(url).hostname == "localhost":
+        console.print("[yellow]! 'localhost' may resolve to IPv6 ::1 first; if the server only "
+                      "listens on IPv4 (Ollama does), every new connection waits ~0.3 s on "
+                      "Windows and that lands in TTFT. Use 127.0.0.1 instead.[/yellow]")
     if env.server_models and model not in env.server_models:
         # a warning, not an error: some servers accept aliases they do not list
         console.print(f"[yellow]! The server does not list model '{model}'. It has: "

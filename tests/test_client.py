@@ -115,3 +115,16 @@ async def test_itl_median_matches_short_gaps(fake):
     r = await _one(fake, output_len=30)
     itls = sorted(r.itls)
     assert itls[len(itls) // 2] == pytest.approx(0.015, abs=0.003)
+
+
+async def test_connections_are_reused(fake):
+    # breaking out of the stream at [DONE] used to close the connection, so every request
+    # paid a new TCP connect (about 0.3 s each for `localhost` on Windows)
+    fake.cfg.ttft, fake.cfg.itl = 0.01, 0.002
+    spec = RequestSpec(url=fake.url, model="fake-model", output_len=3)
+    async with httpx.AsyncClient(timeout=30) as client:
+        for i in range(4):
+            r = await send_request(client, spec, PROMPT, index=i)
+            assert r.ok, r.error
+    assert fake.stats.total == 4
+    assert len(fake.stats.peers) == 1

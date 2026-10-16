@@ -119,3 +119,12 @@ def test_cli_warns_about_unknown_model(fake, tmp_path):
     assert res.exit_code == 0, res.output
     assert "does not list model 'not-pulled:0.5b'" in res.output
     assert "fake-model" in res.output
+
+
+def test_cli_warns_about_localhost(fake):
+    fake.cfg.ttft, fake.cfg.itl = 0.01, 0.002
+    url = fake.url.replace("127.0.0.1", "localhost")
+    res = runner.invoke(app, ["run", "--url", url, "--model", "fake-model", "--concurrency",
+                              "1", "--num-requests", "1", "--output-len", "2", "--warmup", "0"])
+    assert res.exit_code == 0, res.output
+    assert "Use 127.0.0.1" in res.output

@@ -81,12 +81,16 @@ async def send_request(
                 body = (await resp.aread()).decode(errors="replace")[:200]
                 res.ok, res.error = False, f"HTTP {resp.status_code}: {body}"
                 return res
+            done_at: float | None = None
+            # Read to the very end of the body, even after [DONE]: leaving the stream early
+            # makes httpx close the connection, so every request would pay a new TCP connect.
             async for line in resp.aiter_lines():
-                if not line.startswith("data:"):
+                if done_at is not None or not line.startswith("data:"):
                     continue
                 data = line[5:].strip()
                 if data == "[DONE]":
-                    break
+                    done_at = time.perf_counter()
+                    continue
                 now = time.perf_counter()
                 try:
                     chunk = json.loads(data)
@@ -102,7 +106,7 @@ async def send_request(
                 if text:
                     res.chunk_times.append(round(now - start, 6))  # us is plenty
                     pieces.append(text)
-        res.e2e = time.perf_counter() - start
+        res.e2e = (done_at if done_at is not None else time.perf_counter()) - start
     except httpx.TimeoutException as e:
         res.ok, res.error = False, f"timeout ({type(e).__name__})"
         return res
