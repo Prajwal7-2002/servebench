@@ -2,7 +2,7 @@
 
 Order of preference (recorded per request as `token_source`):
 1. `usage` from the server (asked for with `stream_options.include_usage`)
-2. a Hugging Face tokenizer, if `--tokenizer` was given (needs `pip install servebench[hf]`)
+2. a Hugging Face tokenizer, if `--tokenizer` was given (needs the `servebench[hf]` extra)
 3. the number of content chunks (assumes one token per chunk; often right, never guaranteed)
 """
 
@@ -20,7 +20,7 @@ def load_tokenizer(name: str):
         from transformers import AutoTokenizer
     except ImportError as e:  # pragma: no cover - depends on optional extra
         raise RuntimeError(
-            "--tokenizer needs the Hugging Face tokenizer: install the extra: servebench[hf]"
+            "--tokenizer needs the servebench[hf] extra (Hugging Face transformers)"
         ) from e
     return AutoTokenizer.from_pretrained(name)
 

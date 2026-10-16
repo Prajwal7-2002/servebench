@@ -90,7 +90,7 @@ def run(
     slo_tpot_ms: Annotated[float | None, typer.Option(help="Goodput SLO on TPOT")] = 50.0,
     tokenizer: Annotated[str | None, typer.Option(
         help="Hugging Face tokenizer for exact prompt lengths and for counting tokens when "
-             "the server sends no usage (needs the servebench[hf] extra)")] = None,
+             r"the server sends no usage (needs the servebench\[hf] extra)")] = None,
     api_key: Annotated[str | None, typer.Option(
         envvar="OPENAI_API_KEY", help="Bearer token, if the server needs one")] = None,
     label: Annotated[str | None, typer.Option(help="Name for this run in reports")] = None,
@@ -193,7 +193,7 @@ def fake_server(
     try:
         from .fake_server import FakeConfig, serve
     except ImportError as e:
-        console.print("[red]fake-server needs: install the extra: servebench[fake][/red]")
+        console.print(r"[red]fake-server needs the servebench\[fake] extra[/red]")
         raise typer.Exit(1) from e
     console.print(f"Fake server on http://{host}:{port}/v1 (model 'fake-model'), "
                   f"TTFT {ttft_ms} ms, ITL {itl_ms} ms. Ctrl+C to stop.")

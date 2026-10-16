@@ -134,7 +134,7 @@ servebench does not try to replace the bigger tools; use them if they fit:
 [NVIDIA GenAI-Perf](https://github.com/triton-inference-server/perf_analyzer),
 [guidellm](https://github.com/vllm-project/guidellm),
 [LLMPerf](https://github.com/ray-project/llmperf).
-servebench is a small `pip install` that works against any engine, makes clean multi-run
+servebench is a small install that works against any engine, makes clean multi-run
 comparisons, and is used to measure the rest of this series of projects on free hardware.
 
 ## Development
