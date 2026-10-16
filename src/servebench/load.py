@@ -209,7 +209,12 @@ async def check_warmup(
     wr = await warmup(spec, prompts_for(n, seed + 10_000), timeout)
     bad = [r for r in wr if not r.ok]
     if len(bad) == len(wr):
-        raise RuntimeError(f"all warm-up requests failed, first error: {bad[0].error}")
+        err = bad[0].error or ""
+        # refused, or (often on Windows) no answer before the connect timeout
+        if err.startswith("ConnectError") or "ConnectTimeout" in err:
+            raise RuntimeError(f"could not connect to {spec.url}. Is the server running? "
+                               f"({err})")
+        raise RuntimeError(f"all warm-up requests failed, first error: {err}")
 
 
 def level_runner(

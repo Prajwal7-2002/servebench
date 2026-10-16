@@ -127,6 +127,11 @@ def _setup(*, url, model, mode, levels, max_concurrency, num_requests, input_len
     spec = RequestSpec(url=url, model=model, endpoint=endpoint, output_len=output_len,
                        ignore_eos=ignore_eos, temperature=temperature, api_key=api_key)
 
+    if env.server_models and model not in env.server_models:
+        # a warning, not an error: some servers accept aliases they do not list
+        console.print(f"[yellow]! The server does not list model '{model}'. It has: "
+                      f"{', '.join(env.server_models)}. For Ollama: ollama pull {model}[/yellow]")
+
     def prompts_for(n: int, s: int) -> list[Prompt]:
         return load_prompts(prompts, n, input_len, s, tokenizer)
 

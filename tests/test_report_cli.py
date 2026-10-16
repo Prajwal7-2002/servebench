@@ -108,3 +108,14 @@ def test_terminal_table_never_truncates_numbers(width):
     assert "…" not in text  # no ellipsis anywhere
     lines = text.splitlines()
     assert any("c=128" in ln and "12345.6" in ln and "12809" in ln for ln in lines)
+
+
+def test_cli_warns_about_unknown_model(fake, tmp_path):
+    fake.cfg.ttft, fake.cfg.itl = 0.01, 0.002
+    res = runner.invoke(app, [
+        "run", "--url", fake.url, "--model", "not-pulled:0.5b", "--concurrency", "1",
+        "--num-requests", "1", "--output-len", "2", "--warmup", "0",
+    ])
+    assert res.exit_code == 0, res.output
+    assert "does not list model 'not-pulled:0.5b'" in res.output
+    assert "fake-model" in res.output

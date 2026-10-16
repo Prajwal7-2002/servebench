@@ -77,5 +77,5 @@ async def test_errors_are_counted(fake):
 
 async def test_sweep_aborts_if_warmup_all_fails():
     s = RequestSpec(url="http://127.0.0.1:9/v1", model="x")
-    with pytest.raises(RuntimeError, match="warm-up"):
+    with pytest.raises(RuntimeError, match="Is the server running"):
         await run_sweep(s, lambda n, _: synthetic(n, 4), "concurrency", [1], 2, timeout=2)
