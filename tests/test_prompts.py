@@ -59,3 +59,10 @@ def test_from_file_jsonl_and_txt(tmp_path):
 def test_load_prompts_rejects_unknown():
     with pytest.raises(ValueError, match="synthetic"):
         P.load_prompts("nope-not-a-file", 1, 10)
+
+
+@pytest.mark.parametrize("length", [1, 4, 8, 16, 256])
+def test_synthetic_prompts_stay_distinct_at_any_length(length):
+    got = P.synthetic(20, length, seed=0)
+    assert all(len(p.text.split()) == length for p in got)
+    assert len({p.text for p in got}) >= (20 if length >= 4 else 2)

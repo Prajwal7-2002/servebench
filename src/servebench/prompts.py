@@ -55,17 +55,22 @@ def synthetic(n: int, input_len: int, seed: int = 0, tokenizer: str | None = Non
     one prompt's KV cache for the next (only the short instruction prefix is shared).
     """
     rng = random.Random(seed)
-    head = "Write a long story that uses these words: "
+    head = "Write a long story that uses these words:".split()
+    # The instruction takes at most a quarter of the prompt. Before this cap, an 8-word
+    # prompt was only the 8-word instruction, so every prompt was identical.
+    n_head = min(len(head), input_len // 4)
     out = []
     for _ in range(n):
-        body = " ".join(rng.choice(_WORDS) for _ in range(max(input_len, 1)))
-        text = head + body
+        n_body = max(input_len - n_head, 1)
+        if tokenizer:
+            # extra words, then cut to the exact token count
+            n_body = max(input_len, 1)
+        words = head[:n_head] + [rng.choice(_WORDS) for _ in range(n_body)]
+        text = " ".join(words)
         if tokenizer:
             from .tokens import truncate_to_tokens
 
             text = truncate_to_tokens(tokenizer, text, input_len)
-        else:
-            text = " ".join(text.split()[:input_len])
         out.append(Prompt(text, "synthetic"))
     return out
 
