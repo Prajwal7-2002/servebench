@@ -70,7 +70,11 @@ Model = Annotated[str, typer.Option(help="Model name as the server knows it")]
 MaxConcurrency = Annotated[int | None, typer.Option(
     help="Cap on in-flight requests in rate mode")]
 NumRequests = Annotated[int | None, typer.Option(
-    help="Requests per level (default: max(16, 4*N) for concurrency, 64 for rate)")]
+    help="Requests per level (default: max(16, 4*N) for concurrency, 64 for rate); with "
+         "--duration, an optional cap")]
+Duration = Annotated[float | None, typer.Option(
+    help="Run each level for this many seconds instead of a fixed number of requests "
+         "(in-flight requests then finish)")]
 InputLen = Annotated[int, typer.Option(
     help="Prompt length in tokens (synthetic) or max words (dolly)")]
 OutputLen = Annotated[int, typer.Option(help="max_tokens per request")]
@@ -107,15 +111,19 @@ class Setup:
     prompts_for: Callable[[int, int], list[Prompt]]
 
 
-def _setup(*, url, model, mode, levels, max_concurrency, num_requests, input_len, output_len,
+def _setup(*, url, model, mode, levels, max_concurrency, num_requests, duration,
+           input_len, output_len,
            prompts, endpoint, ignore_eos, temperature, warmup, seed, timeout, slo_ttft_ms,
            slo_tpot_ms, tokenizer, api_key, notes) -> Setup:
     if endpoint not in ("chat", "completions"):
         raise typer.BadParameter("--endpoint must be 'chat' or 'completions'")
+    if duration is not None and duration <= 0:
+        raise typer.BadParameter("--duration must be a positive number of seconds")
     cfg = RunConfig(
         url=url, model=model, endpoint=endpoint, prompts=prompts, input_len=input_len,
         output_len=output_len, mode=mode, levels=levels, max_concurrency=max_concurrency,
-        num_requests=num_requests, warmup=warmup, seed=seed, ignore_eos=ignore_eos,
+        num_requests=num_requests, duration=duration, warmup=warmup, seed=seed,
+        ignore_eos=ignore_eos,
         temperature=temperature, timeout=timeout, slo_ttft_ms=slo_ttft_ms,
         slo_tpot_ms=slo_tpot_ms, tokenizer=tokenizer,
     )
@@ -169,6 +177,7 @@ def run(
              "all at once")] = None,
     max_concurrency: MaxConcurrency = None,
     num_requests: NumRequests = None,
+    duration: Duration = None,
     input_len: InputLen = 256,
     output_len: OutputLen = 128,
     prompts: Prompts = "synthetic",
@@ -193,8 +202,11 @@ def run(
     levels = parse_levels(concurrency if concurrency is not None else rate)
     if mode == "concurrency" and any(math.isinf(v) or v != int(v) for v in levels):
         raise typer.BadParameter("--concurrency levels must be whole numbers")
+    if duration and any(math.isinf(v) for v in levels):
+        raise typer.BadParameter("--duration needs finite rates ('inf' sends all at once)")
     st = _setup(url=url, model=model, mode=mode, levels=levels, max_concurrency=max_concurrency,
-                num_requests=num_requests, input_len=input_len, output_len=output_len,
+                num_requests=num_requests, duration=duration, input_len=input_len,
+                output_len=output_len,
                 prompts=prompts, endpoint=endpoint, ignore_eos=ignore_eos,
                 temperature=temperature, warmup=warmup, seed=seed, timeout=timeout,
                 slo_ttft_ms=slo_ttft_ms, slo_tpot_ms=slo_tpot_ms, tokenizer=tokenizer,
@@ -203,7 +215,8 @@ def run(
     console.print(f"servebench {__version__}: {mode} sweep {levels} against {url} ({model})")
     try:
         levels_out = asyncio.run(run_sweep(
-            st.spec, st.prompts_for, mode, levels, num_requests, warmup_requests=warmup,
+            st.spec, st.prompts_for, mode, levels, num_requests, duration=duration,
+            warmup_requests=warmup,
             timeout=timeout, seed=seed, max_concurrency=max_concurrency,
             slo_ttft_ms=slo_ttft_ms, slo_tpot_ms=slo_tpot_ms, counter=st.counter,
             on_level=_print_level,
@@ -229,6 +242,7 @@ def find_capacity_cmd(
         help="Stop when the pass/fail gap is within this fraction of the passing load")] = 0.1,
     max_concurrency: MaxConcurrency = None,
     num_requests: NumRequests = None,
+    duration: Duration = None,
     input_len: InputLen = 256,
     output_len: OutputLen = 128,
     prompts: Prompts = "synthetic",
@@ -260,7 +274,8 @@ def find_capacity_cmd(
     if start <= 0 or max_load < start or math.isinf(max_load):
         raise typer.BadParameter("need 0 < --start <= --max, and a finite --max")
     st = _setup(url=url, model=model, mode=mode, levels=[], max_concurrency=max_concurrency,
-                num_requests=num_requests, input_len=input_len, output_len=output_len,
+                num_requests=num_requests, duration=duration, input_len=input_len,
+                output_len=output_len,
                 prompts=prompts, endpoint=endpoint, ignore_eos=ignore_eos,
                 temperature=temperature, warmup=warmup, seed=seed, timeout=timeout,
                 slo_ttft_ms=slo_ttft_ms, slo_tpot_ms=slo_tpot_ms, tokenizer=tokenizer,
@@ -272,7 +287,8 @@ def find_capacity_cmd(
     async def go():
         await check_warmup(st.spec, st.prompts_for, warmup, timeout, seed)
         measure = level_runner(
-            st.spec, st.prompts_for, mode, num_requests, timeout=timeout, seed=seed,
+            st.spec, st.prompts_for, mode, num_requests, duration=duration, timeout=timeout,
+            seed=seed,
             max_concurrency=max_concurrency, slo_ttft_ms=slo_ttft_ms, slo_tpot_ms=slo_tpot_ms,
             counter=st.counter, on_level=on_level,
         )

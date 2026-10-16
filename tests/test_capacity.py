@@ -75,7 +75,7 @@ def _slow_server(server):
 async def test_find_capacity_on_mock_server(server):
     _slow_server(server)
     spec = RequestSpec(url=server.url, model="mock-model", output_len=2)
-    measure = level_runner(spec, lambda n, s: synthetic(n, 8, s), "concurrency", None,
+    measure = level_runner(spec, lambda n, s: synthetic(n, 8, s), "concurrency", 12,
                            slo_ttft_ms=360, slo_tpot_ms=None)
     levels, cap = await find_capacity(measure, "concurrency", max_value=16, slo_ttft_ms=360)
     assert (cap.reason, cap.capacity, cap.first_fail) == ("converged", 4, 5)
@@ -91,7 +91,7 @@ def test_cli_find_capacity(server, tmp_path):
     res = CliRunner().invoke(app, [
         "find-capacity", "--url", server.url, "--model", "mock-model", "--max", "16",
         "--slo-ttft-ms", "360", "--slo-tpot-ms", "1000", "--output-len", "2",
-        "--input-len", "8", "--warmup", "1", "--out", str(out),
+        "--input-len", "8", "--warmup", "1", "--num-requests", "12", "--out", str(out),
     ])
     assert res.exit_code == 0, res.output
     assert "-> pass" in res.output and "-> FAIL" in res.output

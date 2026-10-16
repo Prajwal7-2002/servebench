@@ -192,3 +192,18 @@ def test_reasoning_warning_in_report(server):
     assert res.exit_code == 0, res.output
     assert "Reasoning model: 75% of output chunks" in res.output
     assert not any("Reasoning" in w for w in warnings_for(sample_run("plain")))
+
+
+def test_cli_duration(server, tmp_path):
+    server.cfg.ttft, server.cfg.itl = 0.01, 0.002
+    out = tmp_path / "timed.json"
+    res = runner.invoke(app, ["run", "--url", server.url, "--model", "mock-model",
+                              "--concurrency", "2", "--duration", "0.4", "--output-len", "2",
+                              "--warmup", "0", "--out", str(out)])
+    assert res.exit_code == 0, res.output
+    run = load_run(out)
+    assert run.config.duration == 0.4 and run.levels[0].summary.completed > 4
+
+    res = runner.invoke(app, ["run", "--url", server.url, "--model", "mock-model",
+                              "--rate", "inf", "--duration", "1"])
+    assert res.exit_code != 0 and "finite rates" in res.output

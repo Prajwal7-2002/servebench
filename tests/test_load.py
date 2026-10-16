@@ -6,7 +6,7 @@ import statistics
 import pytest
 
 from servebench.client import RequestSpec
-from servebench.load import poisson_delays, run_level, run_sweep
+from servebench.load import level_runner, poisson_delays, run_level, run_sweep
 from servebench.prompts import synthetic
 
 
@@ -79,3 +79,52 @@ async def test_sweep_aborts_if_warmup_all_fails():
     s = RequestSpec(url="http://127.0.0.1:9/v1", model="x")
     with pytest.raises(RuntimeError, match="Is the server running"):
         await run_sweep(s, lambda n, _: synthetic(n, 4), "concurrency", [1], 2, timeout=2)
+
+
+# --duration: levels run for a time, not a request count
+
+async def test_concurrency_level_with_duration(server):
+    server.cfg.ttft, server.cfg.itl = 0.05, 0.005
+    from servebench.load import prompt_stream
+
+    lv = await run_level(spec(server, 2), prompt_stream(lambda n, s: synthetic(n, 8, s), 0),
+                         "concurrency", 2, duration=0.5)
+    assert server.stats.peak == 2
+    assert all(r.start < 0.5 for r in lv.requests)  # nothing new starts after the deadline
+    assert 0.5 <= lv.duration < 0.7  # in-flight requests finish
+    assert 10 <= lv.summary.completed <= 25  # ~2 * 0.5 s / 55 ms each
+
+
+async def test_rate_level_with_duration_matches_poisson_arrivals(server):
+    server.cfg.ttft, server.cfg.itl = 0.01, 0.002
+    from itertools import accumulate
+
+    from servebench.load import prompt_stream
+
+    lv = await run_level(spec(server, 2), prompt_stream(lambda n, s: synthetic(n, 8, s), 0),
+                         "rate", 40.0, seed=5, duration=0.5)
+    expected = sum(1 for t in accumulate(poisson_delays(200, 40.0, seed=5)) if t < 0.5)
+    assert lv.summary.completed == expected
+
+
+async def test_duration_with_request_cap(server):
+    server.cfg.ttft, server.cfg.itl = 0.01, 0.002
+    measure = level_runner(spec(server, 2), lambda n, s: synthetic(n, 8, s), "concurrency",
+                           6, duration=30)
+    lv = await measure(2)
+    assert lv.summary.completed == 6 and lv.duration < 5  # the cap ended it, not the clock
+
+
+def test_prompt_stream_batches_are_distinct():
+    from itertools import islice
+
+    from servebench.load import prompt_stream
+
+    got = list(islice(prompt_stream(lambda n, s: synthetic(n, 8, s), 0, batch=4), 12))
+    assert len({p.text for p in got}) == 12
+
+
+async def test_duration_rejects_infinite_rate():
+    with pytest.raises(ValueError, match="finite rate"):
+        await run_level(RequestSpec(url="http://x/v1", model="m"), [], "rate", math.inf,
+                        duration=1)

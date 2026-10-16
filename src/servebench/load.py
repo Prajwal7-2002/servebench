@@ -7,7 +7,7 @@ import itertools
 import math
 import random
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterable, Iterator
 
 import httpx
 import numpy as np
@@ -72,22 +72,23 @@ def make_client(max_connections: int | None, timeout: float) -> httpx.AsyncClien
 async def run_concurrency(
     client: httpx.AsyncClient,
     spec: RequestSpec,
-    prompts: list[Prompt],
+    prompts: Iterable[Prompt],
     concurrency: int,
     counter: Counter | None = None,
+    duration: float | None = None,
 ) -> tuple[list[RequestResult], float]:
-    """Closed loop: keep exactly `concurrency` requests in flight until all prompts are sent."""
-    queue: asyncio.Queue[tuple[int, Prompt]] = asyncio.Queue()
-    for i, p in enumerate(prompts):
-        queue.put_nowait((i, p))
+    """Closed loop: keep exactly `concurrency` requests in flight until the prompts run out
+    or, with `duration`, until no new request should start (in-flight ones then finish)."""
+    it = enumerate(prompts)
     results: list[RequestResult] = []
     t0 = time.perf_counter()
+    deadline = t0 + duration if duration else None
 
     async def worker() -> None:
-        while True:
+        while deadline is None or time.perf_counter() < deadline:
             try:
-                i, p = queue.get_nowait()
-            except asyncio.QueueEmpty:
+                i, p = next(it)  # one event-loop thread, so no lock needed
+            except StopIteration:
                 return
             results.append(await send_request(client, spec, p, index=i, t0=t0, counter=counter))
 
@@ -98,16 +99,21 @@ async def run_concurrency(
 async def run_rate(
     client: httpx.AsyncClient,
     spec: RequestSpec,
-    prompts: list[Prompt],
+    prompts: Iterable[Prompt],
     rate: float,
     seed: int = 0,
     max_concurrency: int | None = None,
     counter: Counter | None = None,
+    duration: float | None = None,
 ) -> tuple[list[RequestResult], float]:
-    """Open loop: requests arrive as a Poisson process, whether or not earlier ones finished."""
+    """Open loop: requests arrive as a Poisson process, whether or not earlier ones finished.
+    With `duration`, arrivals stop at the deadline and the in-flight requests finish."""
+    if duration and math.isinf(rate):
+        raise ValueError("a duration needs a finite rate (rate=inf sends everything at once)")
     sem = asyncio.Semaphore(max_concurrency) if max_concurrency else None
+    rng = random.Random(seed)  # same sequence as poisson_delays(n, rate, seed)
     t0 = time.perf_counter()
-    delays = poisson_delays(len(prompts), rate, seed)
+    deadline = t0 + duration if duration else None
 
     async def one(i: int, p: Prompt) -> RequestResult:
         if sem is None:
@@ -117,9 +123,11 @@ async def run_rate(
 
     tasks = []
     next_at = t0
-    for i, (p, d) in enumerate(zip(prompts, delays, strict=True)):
+    for i, p in enumerate(prompts):
         # schedule against absolute times so sleep overshoot does not accumulate
-        next_at += d
+        next_at += 0.0 if math.isinf(rate) else rng.expovariate(rate)
+        if deadline is not None and next_at >= deadline:
+            break
         wait = next_at - time.perf_counter()
         if wait > 0:
             await asyncio.sleep(wait)
@@ -130,10 +138,11 @@ async def run_rate(
 
 async def run_level(
     spec: RequestSpec,
-    prompts: list[Prompt],
+    prompts: Iterable[Prompt],
     mode: str,
     value: float,
     *,
+    duration: float | None = None,
     timeout: float = 300.0,
     seed: int = 0,
     max_concurrency: int | None = None,
@@ -149,10 +158,11 @@ async def run_level(
         lag = LagMonitor()
         lag.start()
         if mode == "concurrency":
-            reqs, dur = await run_concurrency(client, spec, prompts, int(value), counter)
+            reqs, dur = await run_concurrency(client, spec, prompts, int(value), counter,
+                                              duration)
         else:
             reqs, dur = await run_rate(client, spec, prompts, value, seed, max_concurrency,
-                                       counter)
+                                       counter, duration)
         lag_p99 = await lag.stop()
     return LevelResult(
         mode=mode,
@@ -177,6 +187,7 @@ async def run_sweep(
     levels: list[float],
     num_requests: int | None,
     *,
+    duration: float | None = None,
     warmup_requests: int = 2,
     timeout: float = 300.0,
     seed: int = 0,
@@ -189,7 +200,7 @@ async def run_sweep(
     """Run every level. `prompts_for(n, seed)` returns n prompts; each level gets fresh ones."""
     await check_warmup(spec, prompts_for, warmup_requests, timeout, seed)
     measure = level_runner(
-        spec, prompts_for, mode, num_requests, timeout=timeout, seed=seed,
+        spec, prompts_for, mode, num_requests, duration=duration, timeout=timeout, seed=seed,
         max_concurrency=max_concurrency, slo_ttft_ms=slo_ttft_ms, slo_tpot_ms=slo_tpot_ms,
         counter=counter, on_level=on_level,
     )
@@ -223,6 +234,7 @@ def level_runner(
     mode: str,
     num_requests: int | None,
     *,
+    duration: float | None = None,
     timeout: float = 300.0,
     seed: int = 0,
     max_concurrency: int | None = None,
@@ -231,14 +243,24 @@ def level_runner(
     counter: Counter | None = None,
     on_level: Callable[[LevelResult], None] | None = None,
 ) -> Callable[[float], Awaitable[LevelResult]]:
-    """Return `measure(value)`, which runs one level; the k-th call uses seed + k."""
+    """Return `measure(value)`, which runs one level; the k-th call uses seed + k.
+
+    Without `duration` a level sends `num_requests` (or a default per load). With it, a level
+    runs for `duration` seconds on an endless prompt stream, capped by `num_requests` if given.
+    """
     calls = itertools.count()
 
     async def measure(value: float) -> LevelResult:
         k = next(calls)
-        n = num_requests or default_num_requests(mode, value)
+        prompts: Iterable[Prompt]
+        if duration:
+            prompts = prompt_stream(prompts_for, seed + k)
+            if num_requests:
+                prompts = itertools.islice(prompts, num_requests)
+        else:
+            prompts = prompts_for(num_requests or default_num_requests(mode, value), seed + k)
         level = await run_level(
-            spec, prompts_for(n, seed + k), mode, value, timeout=timeout, seed=seed + k,
+            spec, prompts, mode, value, duration=duration, timeout=timeout, seed=seed + k,
             max_concurrency=max_concurrency, slo_ttft_ms=slo_ttft_ms, slo_tpot_ms=slo_tpot_ms,
             counter=counter,
         )
@@ -247,6 +269,14 @@ def level_runner(
         return level
 
     return measure
+
+
+def prompt_stream(prompts_for: Callable[[int, int], list[Prompt]], seed: int,
+                  batch: int = 256) -> Iterator[Prompt]:
+    """Endless prompts for timed levels, made in batches (each batch its own seed, so
+    synthetic prompts stay distinct and nothing is generated that isn't used)."""
+    for b in itertools.count():
+        yield from prompts_for(batch, seed * 100_003 + b)
 
 
 def default_num_requests(mode: str, value: float) -> int:

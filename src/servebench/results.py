@@ -116,6 +116,7 @@ class RunConfig(BaseModel):
     levels: list[float] = Field(default_factory=lambda: [1.0])
     max_concurrency: int | None = None
     num_requests: int | None = None
+    duration: float | None = Field(None, description="Seconds per level, for timed runs")
     warmup: int = 2
     seed: int = 0
     ignore_eos: bool = True
