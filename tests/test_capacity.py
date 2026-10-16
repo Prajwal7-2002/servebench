@@ -1,5 +1,7 @@
 """find-capacity: the search logic on its own, then end to end against the fake server."""
 
+import re
+
 import pytest
 from typer.testing import CliRunner
 
@@ -62,22 +64,24 @@ async def test_find_capacity_needs_an_slo():
         await find_capacity(None, "concurrency")
 
 
-# Fake server: TTFT = 50 ms * in_flight (slowdown 1.0), so with a 225 ms TTFT SLO,
-# 4 in flight gives 200 ms (pass) and 5 gives 250 ms (fail): 25 ms margin either way for
-# connection setup and timer jitter. Capacity should be exactly 4.
+# Fake server: TTFT = 80 ms * in_flight (slowdown 1.0), so with a 360 ms TTFT SLO,
+# 4 in flight gives 320 ms (pass) and 5 gives 400 ms (fail): 40 ms margin either way for
+# connection setup and timer jitter (25 ms was not enough on Windows CI runners).
+# Capacity should be exactly 4.
 def _slow_server(fake):
-    fake.cfg.ttft, fake.cfg.itl, fake.cfg.slowdown = 0.05, 0.005, 1.0
+    fake.cfg.ttft, fake.cfg.itl, fake.cfg.slowdown = 0.08, 0.005, 1.0
 
 
 async def test_find_capacity_on_fake_server(fake):
     _slow_server(fake)
     spec = RequestSpec(url=fake.url, model="fake-model", output_len=2)
     measure = level_runner(spec, lambda n, s: synthetic(n, 8, s), "concurrency", None,
-                           slo_ttft_ms=225, slo_tpot_ms=None)
-    levels, cap = await find_capacity(measure, "concurrency", max_value=16, slo_ttft_ms=225)
+                           slo_ttft_ms=360, slo_tpot_ms=None)
+    levels, cap = await find_capacity(measure, "concurrency", max_value=16, slo_ttft_ms=360)
     assert (cap.reason, cap.capacity, cap.first_fail) == ("converged", 4, 5)
     assert [lv.value for lv in levels] == [1, 2, 4, 5, 6, 8]  # sorted for charts
-    assert levels[2].summary.slo_attainment == 1.0
+    # assert the pass rule (>= 90%), not 100%: one late request on a slow CI runner is fine
+    assert levels[2].summary.slo_attainment >= 0.9
     assert levels[3].summary.slo_attainment < 0.9
 
 
@@ -86,7 +90,7 @@ def test_cli_find_capacity(fake, tmp_path):
     out = tmp_path / "cap.json"
     res = CliRunner().invoke(app, [
         "find-capacity", "--url", fake.url, "--model", "fake-model", "--max", "16",
-        "--slo-ttft-ms", "225", "--slo-tpot-ms", "1000", "--output-len", "2",
+        "--slo-ttft-ms", "360", "--slo-tpot-ms", "1000", "--output-len", "2",
         "--input-len", "8", "--warmup", "1", "--out", str(out),
     ])
     assert res.exit_code == 0, res.output
@@ -94,8 +98,9 @@ def test_cli_find_capacity(fake, tmp_path):
     run = load_run(out)
     assert run.capacity.capacity == 4
     text = capacity_text(run)
-    assert text.startswith("Capacity: 4 concurrent requests. At 4, 100% met the SLO; at 5, only ")
-    assert text.endswith("SLO: TTFT < 225 ms and TPOT < 1000 ms for 90% of requests.")
+    assert re.match(r"Capacity: 4 concurrent requests\. At 4, \d+% met the SLO; at 5, only \d+%",
+                    text), text
+    assert text.endswith("SLO: TTFT < 360 ms and TPOT < 1000 ms for 90% of requests.")
     assert run.config.levels == [1, 2, 4, 5, 6, 8]
 
 
