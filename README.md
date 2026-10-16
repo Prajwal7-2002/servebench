@@ -13,11 +13,37 @@ No GPU or engine install is needed on the client: it is one async Python process
 
 ## Quickstart
 
-Uses [uv](https://docs.astral.sh/uv/). PyPI release coming; for now, from a clone:
+Uses [uv](https://docs.astral.sh/uv/) (or pipx/pip). PyPI release coming; for now, from a
+clone:
 
 ```bash
 uv tool install --from . servebench      # puts `servebench` on your PATH
+servebench quick                         # finds your local server, ~1 minute
+```
 
+`quick` looks for Ollama, llama.cpp, LM Studio, vLLM and SGLang on their usual ports, picks
+the loaded model, measures, and answers in plain language. A real run (Ollama with
+`OLLAMA_NUM_PARALLEL=4` on a laptop):
+
+```
+servebench quick: Ollama 0.35.1 at http://127.0.0.1:11434/v1, model qwen2.5:0.5b
+...
+Ollama 0.35.1, qwen2.5:0.5b on AMD Ryzen 5 6600H, 15.3 GB RAM, NVIDIA GeForce RTX 3050 6GB Laptop GPU
+One user:    first token in 43 ms, then 203 tokens/s
+Capacity:    4 users at once (first token < 500 ms and >= 20 tokens/s each, for 90% of requests)
+At 4 users:  361 tokens/s in total, 136 tokens/s each, first token p99 161 ms
+```
+
+With default Ollama settings it also explains *why* the limit is where it is ("requests
+queue: the server works on about 1 at once") and suggests the fix. Then
+`servebench share <run.json>` prints a Markdown table to paste into a post or issue and
+makes a result card:
+
+![servebench result card: 4 users at once, 203 tokens/s for one user, 43 ms to first token](results/quick-ollama-np4-card.png)
+
+Full control:
+
+```bash
 # sweep a running server, e.g. Ollama (on Windows use 127.0.0.1, not localhost)
 servebench run --url http://127.0.0.1:11434/v1 --model qwen2.5:0.5b \
     --concurrency 1,2,4,8 --input-len 256 --output-len 128 --out runs/ollama.json

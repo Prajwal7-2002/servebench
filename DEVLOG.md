@@ -78,3 +78,16 @@
   Test suite 69 s -> 41 s. Verified against Ollama (both endpoints).
 - httpx dropped from the package (stdlib urllib for /models and the dolly download); kept
   only as a test tool. numpy no longer a direct dependency.
+
+## 2026-10-16: A1-A3: quick, machine info, share
+
+- `servebench quick`: no arguments; finds Ollama/llama.cpp/LM Studio/vLLM/SGLang on their
+  ports, picks the loaded model, ~1 minute capacity search, plain-language answer with the
+  reason it stops (queueing) and an Ollama tip. RTX 3050 laptop, 4 slots: 40 s, capacity 4.
+- run.json now records CPU, RAM, GPUs, engine + version, and model facts after the run
+  (Ollama: size, quantization, % on GPU; llama.cpp: slots).
+- `servebench share`: paste-ready Markdown + 1200x630 PNG card.
+- Real server stall: first quick run took 317 s because Ollama paused 288 s mid-answer on
+  one request (its own log: 2280 ms/token vs 5 ms). Reports now flag stalls (>5 s and >50x
+  median gap); quick uses a 2-minute read timeout. Ollama's per-request log timings matched
+  servebench's client-side TTFT/TPOT closely: a good independent check.
