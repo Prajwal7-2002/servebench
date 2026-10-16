@@ -171,3 +171,33 @@ async def test_finish_reason_without_done_is_fine(server):
     assert _parse_stream_end(done=False, finish_reason="stop") is None
     assert _parse_stream_end(done=True, finish_reason=None) is None
     assert _parse_stream_end(done=False, finish_reason=None).startswith("incomplete stream")
+
+
+async def test_reasoning_tokens_count_as_generated(server):
+    # reasoning models stream "thinking" in delta.reasoning_content before the answer;
+    # those are generated tokens, so TTFT is the first of them and they count for TPOT
+    server.cfg.ttft, server.cfg.itl, server.cfg.reasoning_tokens = 0.1, 0.02, 5
+    r = await _one(server, output_len=10)
+    assert r.ok, r.error
+    assert r.num_chunks == 10 and r.reasoning_chunks == 5
+    assert r.ttft == pytest.approx(0.1, abs=TOL)
+    assert r.answer_start == pytest.approx(0.1 + 5 * 0.02, abs=TOL)
+    assert r.output_tokens == 10
+
+
+async def test_answer_start_equals_ttft_without_reasoning(server):
+    r = await _one(server, output_len=4)
+    assert r.reasoning_chunks == 0 and r.answer_start == r.ttft
+
+
+def test_chunk_text_reads_both_reasoning_field_names():
+    from servebench.client import _chunk_text
+
+    def mk(delta):
+        return {"choices": [{"delta": delta}]}
+
+    assert _chunk_text(mk({"reasoning_content": "hm"}), "chat") == ("hm", True)
+    assert _chunk_text(mk({"reasoning": "hm", "content": None}), "chat") == ("hm", True)
+    assert _chunk_text(mk({"content": "hi"}), "chat") == ("hi", False)
+    assert _chunk_text(mk({"role": "assistant", "content": ""}), "chat") == ("", False)
+    assert _chunk_text({"choices": [{"text": "x"}]}, "completions") == ("x", False)

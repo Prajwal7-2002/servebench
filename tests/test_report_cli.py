@@ -180,3 +180,15 @@ def test_newer_or_broken_run_files_give_clear_errors(tmp_path):
 
     res = runner.invoke(app, ["report", str(newer)])
     assert res.exit_code != 0 and "newer servebench" in res.output
+
+
+def test_reasoning_warning_in_report(server):
+    from servebench.report import warnings_for
+
+    server.cfg.ttft, server.cfg.itl, server.cfg.reasoning_tokens = 0.02, 0.005, 6
+    res = runner.invoke(app, ["run", "--url", server.url, "--model", "mock-model",
+                              "--concurrency", "1", "--num-requests", "2", "--output-len", "8",
+                              "--warmup", "0"])
+    assert res.exit_code == 0, res.output
+    assert "Reasoning model: 75% of output chunks" in res.output
+    assert not any("Reasoning" in w for w in warnings_for(sample_run("plain")))

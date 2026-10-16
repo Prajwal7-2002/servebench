@@ -66,4 +66,6 @@ def summarize(
         output_tokens_mean=(out_tokens / len(ok)) if ok else None,
         tokens_per_chunk=(out_tokens / chunks) if chunks else None,
         token_sources=dict(Counter(r.token_source for r in ok)),
+        reasoning_share=(sum(r.reasoning_chunks for r in ok) / chunks) if chunks else None,
+        answer_start=stats([r.answer_start for r in ok if r.answer_start is not None]),
     )

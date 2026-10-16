@@ -152,6 +152,12 @@ def capacity_text(run: RunResult) -> str | None:
 
 def warnings_for(run: RunResult) -> list[str]:
     out = []
+    reasoning = [lv for lv in run.levels if lv.summary.reasoning_share]
+    if reasoning:
+        lv = reasoning[-1]
+        out.append(f"Reasoning model: {lv.summary.reasoning_share * 100:.0f}% of output chunks "
+                   f"at {lv.label} were reasoning tokens. TTFT counts the first reasoning token; "
+                   f"the first answer token came at p50 {_ms(lv.summary.answer_start.p50)} ms.")
     sources = {k for lv in run.levels for k in lv.summary.token_sources}
     if "chunks" in sources:
         out.append("Some token counts are chunk counts (server sent no `usage` and no "

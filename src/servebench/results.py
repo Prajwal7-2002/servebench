@@ -24,6 +24,11 @@ class RequestResult(BaseModel):
     prompt_tokens: int | None = None
     output_tokens: int = 0
     token_source: TokenSource = "chunks"
+    reasoning_chunks: int = Field(
+        0, description="Content chunks that were reasoning ('thinking') tokens, not answer")
+    answer_start: float | None = Field(
+        None, description="Send -> first answer (non-reasoning) chunk; equals TTFT for "
+        "models that don't stream reasoning")
 
     @property
     def num_chunks(self) -> int:
@@ -71,6 +76,10 @@ class Summary(BaseModel):
     output_tokens_mean: float | None = None
     tokens_per_chunk: float | None = None
     token_sources: dict[str, int] = Field(default_factory=dict)
+    reasoning_share: float | None = Field(
+        None, description="Share of content chunks that were reasoning tokens")
+    answer_start: Stats = Field(default_factory=Stats,
+                                description="Send -> first answer token (after reasoning)")
 
 
 class LevelResult(BaseModel):

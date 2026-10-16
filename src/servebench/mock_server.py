@@ -46,6 +46,8 @@ class MockConfig:
     stall_after: int | None = None  # stop sending (but keep the connection) after N tokens
     malformed_after: int | None = None  # send a data line that is not JSON after N tokens
     no_done: bool = False  # end the body cleanly with no finish_reason and no [DONE]
+    # reasoning models: the first N tokens stream as delta.reasoning_content (chat only)
+    reasoning_tokens: int = 0
 
 
 @dataclass
@@ -93,9 +95,15 @@ def create_app(cfg: MockConfig | None = None) -> FastAPI:
         created = int(time.time())
         obj = "chat.completion.chunk" if chat else "text_completion"
 
-        def chunk(content: str | None, *, role: bool = False, finish: str | None = None) -> str:
+        def chunk(content: str | None, *, role: bool = False, finish: str | None = None,
+                  reasoning: bool = False) -> str:
             if chat:
-                delta = {"role": "assistant", "content": ""} if role else {"content": content}
+                if role:
+                    delta = {"role": "assistant", "content": ""}
+                elif reasoning:
+                    delta = {"reasoning_content": content, "content": None}
+                else:
+                    delta = {"content": content}
                 choice = {"index": 0, "delta": delta, "finish_reason": finish}
             else:
                 choice = {"index": 0, "text": content or "", "finish_reason": finish}
@@ -127,7 +135,9 @@ def create_app(cfg: MockConfig | None = None) -> FastAPI:
                     sent += m
                     k += 1
                     last = sent >= n_out and not cfg.no_done
-                    yield chunk("tok " * m, finish="length" if last else None)
+                    thinking = chat and sent <= cfg.reasoning_tokens
+                    yield chunk(("think " if thinking else "tok ") * m,
+                                finish="length" if last else None, reasoning=thinking)
                 if cfg.no_done:
                     return
                 if want_usage and cfg.send_usage:

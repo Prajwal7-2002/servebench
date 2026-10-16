@@ -49,14 +49,26 @@ class RequestSpec:
         return body
 
 
-def _chunk_text(chunk: dict, endpoint: str) -> str:
+# Field names engines use for streamed reasoning ("thinking") tokens: vLLM/SGLang/DeepSeek
+# use reasoning_content, some newer servers use reasoning.
+_REASONING_FIELDS = ("reasoning_content", "reasoning")
+
+
+def _chunk_text(chunk: dict, endpoint: str) -> tuple[str, bool]:
+    """(text, is_reasoning) for the first choice of a streamed chunk."""
     choices = chunk.get("choices") or []
     if not choices:
-        return ""
+        return "", False
     choice = choices[0]
-    if endpoint == "chat":
-        return (choice.get("delta") or {}).get("content") or ""
-    return choice.get("text") or ""
+    if endpoint != "chat":
+        return choice.get("text") or "", False
+    delta = choice.get("delta") or {}
+    if delta.get("content"):
+        return delta["content"], False
+    for field in _REASONING_FIELDS:
+        if delta.get(field):
+            return delta[field], True
+    return "", False
 
 
 def _finish_reason(chunk: dict) -> str | None:
@@ -123,11 +135,18 @@ async def send_request(
                 if chunk.get("usage"):
                     usage = chunk["usage"]
                 finish_reason = _finish_reason(chunk) or finish_reason
-                text = _chunk_text(chunk, spec.endpoint)
-                # role-only and empty chunks do not count: TTFT is the first real content
+                text, reasoning = _chunk_text(chunk, spec.endpoint)
+                # role-only and empty chunks do not count: TTFT is the first generated token,
+                # reasoning included (the model is generating it); answer_start marks the
+                # first token of the actual answer
                 if text:
-                    res.chunk_times.append(round(now - start, 6))  # us is plenty
+                    t = round(now - start, 6)  # us is plenty
+                    res.chunk_times.append(t)
                     pieces.append(text)
+                    if reasoning:
+                        res.reasoning_chunks += 1
+                    elif res.answer_start is None:
+                        res.answer_start = t
         res.e2e = (done_at if done_at is not None else time.perf_counter()) - start
     except httpx.TimeoutException as e:
         res.ok, res.error = False, f"timeout ({type(e).__name__})"
