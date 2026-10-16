@@ -4,6 +4,7 @@ import json
 import math
 
 import pytest
+from conftest import plain
 from typer.testing import CliRunner
 
 from servebench.cli import app, parse_levels
@@ -142,7 +143,7 @@ def test_tick_labels_skip_crowded_values_on_log_axis():
 def test_report_missing_file_is_a_clean_error(tmp_path):
     res = runner.invoke(app, ["report", str(tmp_path / "nope.json")])
     assert res.exit_code != 0
-    assert "does not exist" in res.output
+    assert "does not exist" in plain(res.output)
 
 
 def test_schema_version_written_and_old_files_still_load(tmp_path):
@@ -179,7 +180,7 @@ def test_newer_or_broken_run_files_give_clear_errors(tmp_path):
         load_run(wrong)
 
     res = runner.invoke(app, ["report", str(newer)])
-    assert res.exit_code != 0 and "newer servebench" in res.output
+    assert res.exit_code != 0 and "newer servebench" in plain(res.output), res.output
 
 
 def test_reasoning_warning_in_report(server):
@@ -206,7 +207,7 @@ def test_cli_duration(server, tmp_path):
 
     res = runner.invoke(app, ["run", "--url", server.url, "--model", "mock-model",
                               "--rate", "inf", "--duration", "1"])
-    assert res.exit_code != 0 and "finite rates" in res.output
+    assert res.exit_code != 0 and "finite rates" in plain(res.output), res.output
 
 
 def test_each_run_gets_fresh_prompts_unless_seeded(server, tmp_path):

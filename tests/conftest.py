@@ -6,6 +6,8 @@ bursts (5 ms instead of 15 ms). Tests change its behaviour per test over a small
 control API (`/_mock/config`, `/_mock/reset`); `server.cfg.ttft = 0.2` still works.
 """
 
+import os
+import re
 import socket
 import subprocess
 import sys
@@ -14,6 +16,20 @@ import time
 
 import httpx
 import pytest
+
+# CLI output in tests must not depend on the runner's terminal: macOS CI drew error messages
+# in an 80-column colored box, which wrapped "newer servebench" across two lines.
+os.environ["COLUMNS"] = "400"
+os.environ["NO_COLOR"] = "1"
+os.environ.pop("FORCE_COLOR", None)
+
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")  # terminal color codes
+_BOX = re.compile(r"[\u2500-\u257f|+]")  # box-drawing characters, ASCII fallback
+
+
+def plain(text: str) -> str:
+    """CLI output as plain words: no colors, no box borders, wrapped lines joined."""
+    return " ".join(_BOX.sub(" ", _ANSI.sub("", text)).split())
 
 
 def _free_port() -> int:
