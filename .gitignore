@@ -6,3 +6,7 @@ __pycache__/
 dist/
 build/
 runs/
+
+# personal study notes, not part of the repo
+decisions.md
+flow.md
