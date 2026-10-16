@@ -1,4 +1,4 @@
-"""Command line: `servebench run`, `servebench report`, `servebench fake-server`."""
+"""Command line: `servebench run`, `find-capacity`, `report`, `fake-server`."""
 
 from __future__ import annotations
 
@@ -7,6 +7,8 @@ import math
 import os
 import platform
 import sys
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
@@ -16,12 +18,13 @@ import typer
 from rich.console import Console
 
 from . import __version__
+from .capacity import find_capacity, passes
 from .client import RequestSpec
-from .load import run_sweep
-from .prompts import load_prompts
+from .load import check_warmup, level_runner, run_sweep
+from .prompts import Prompt, load_prompts
 from .report import load_run, print_run, resummarize, save_run, write_report
-from .results import Environment, RunConfig, RunResult
-from .tokens import make_counter
+from .results import Environment, LevelResult, RunConfig, RunResult
+from .tokens import Counter, make_counter
 
 app = typer.Typer(add_completion=False, no_args_is_help=True,
                   help="Load-test any OpenAI-compatible LLM endpoint.")
@@ -60,54 +63,54 @@ def _server_models(url: str, api_key: str | None) -> list[str] | None:
         return None
 
 
-@app.command()
-def run(
-    url: Annotated[str, typer.Option(help="Base URL of the API, e.g. http://localhost:11434/v1")],
-    model: Annotated[str, typer.Option(help="Model name as the server knows it")],
-    concurrency: Annotated[str | None, typer.Option(
-        help="Closed-loop sweep: comma-separated in-flight request counts, e.g. 1,2,4,8")] = None,
-    rate: Annotated[str | None, typer.Option(
-        help="Open-loop sweep: comma-separated Poisson arrival rates in req/s; 'inf' sends "
-             "all at once")] = None,
-    max_concurrency: Annotated[int | None, typer.Option(
-        help="Cap on in-flight requests in rate mode")] = None,
-    num_requests: Annotated[int | None, typer.Option(
-        help="Requests per level (default: max(16, 4*N) for concurrency, 64 for rate)")] = None,
-    input_len: Annotated[int, typer.Option(
-        help="Prompt length in tokens (synthetic) or max words (dolly)")] = 256,
-    output_len: Annotated[int, typer.Option(help="max_tokens per request")] = 128,
-    prompts: Annotated[str, typer.Option(
-        help="'synthetic', 'dolly' (downloads dolly-15k once), or a .jsonl/.txt file"),
-    ] = "synthetic",
-    endpoint: Annotated[str, typer.Option(help="'chat' or 'completions'")] = "chat",
-    ignore_eos: Annotated[bool, typer.Option(
-        help="Ask the server to always generate output-len tokens")] = True,
-    temperature: Annotated[float, typer.Option()] = 0.0,
-    warmup: Annotated[int, typer.Option(help="Warm-up requests, not measured")] = 2,
-    seed: Annotated[int, typer.Option()] = 0,
-    timeout: Annotated[float, typer.Option(help="Per-request timeout in seconds")] = 300.0,
-    slo_ttft_ms: Annotated[float | None, typer.Option(help="Goodput SLO on TTFT")] = 500.0,
-    slo_tpot_ms: Annotated[float | None, typer.Option(help="Goodput SLO on TPOT")] = 50.0,
-    tokenizer: Annotated[str | None, typer.Option(
-        help="Hugging Face tokenizer for exact prompt lengths and for counting tokens when "
-             r"the server sends no usage (needs the servebench\[hf] extra)")] = None,
-    api_key: Annotated[str | None, typer.Option(
-        envvar="OPENAI_API_KEY", help="Bearer token, if the server needs one")] = None,
-    label: Annotated[str | None, typer.Option(help="Name for this run in reports")] = None,
-    notes: Annotated[str | None, typer.Option(
-        help="Free text saved with the run, e.g. hardware or server flags")] = None,
-    out: Annotated[Path | None, typer.Option(help="Write results to this run.json")] = None,
-) -> None:
-    """Benchmark an endpoint over a sweep of load levels."""
-    if (concurrency is None) == (rate is None):
-        raise typer.BadParameter("give exactly one of --concurrency or --rate")
+# Options shared by `run` and `find-capacity`, defined once.
+Url = Annotated[str, typer.Option(help="Base URL of the API, e.g. http://localhost:11434/v1")]
+Model = Annotated[str, typer.Option(help="Model name as the server knows it")]
+MaxConcurrency = Annotated[int | None, typer.Option(
+    help="Cap on in-flight requests in rate mode")]
+NumRequests = Annotated[int | None, typer.Option(
+    help="Requests per level (default: max(16, 4*N) for concurrency, 64 for rate)")]
+InputLen = Annotated[int, typer.Option(
+    help="Prompt length in tokens (synthetic) or max words (dolly)")]
+OutputLen = Annotated[int, typer.Option(help="max_tokens per request")]
+Prompts = Annotated[str, typer.Option(
+    help="'synthetic', 'dolly' (downloads dolly-15k once), or a .jsonl/.txt file")]
+Endpoint = Annotated[str, typer.Option(help="'chat' or 'completions'")]
+IgnoreEos = Annotated[bool, typer.Option(
+    help="Ask the server to always generate output-len tokens")]
+Temperature = Annotated[float, typer.Option()]
+Warmup = Annotated[int, typer.Option(help="Warm-up requests, not measured")]
+Seed = Annotated[int, typer.Option()]
+Timeout = Annotated[float, typer.Option(help="Per-request timeout in seconds")]
+SloTtft = Annotated[float | None, typer.Option(help="SLO on TTFT (goodput, capacity)")]
+SloTpot = Annotated[float | None, typer.Option(help="SLO on TPOT (goodput, capacity)")]
+Tokenizer = Annotated[str | None, typer.Option(
+    help="Hugging Face tokenizer for exact prompt lengths and for counting tokens when "
+         r"the server sends no usage (needs the servebench\[hf] extra)")]
+ApiKey = Annotated[str | None, typer.Option(
+    envvar="OPENAI_API_KEY", help="Bearer token, if the server needs one")]
+Label = Annotated[str | None, typer.Option(help="Name for this run in reports")]
+Notes = Annotated[str | None, typer.Option(
+    help="Free text saved with the run, e.g. hardware or server flags")]
+Out = Annotated[Path | None, typer.Option(help="Write results to this run.json")]
+
+
+@dataclass
+class Setup:
+    """Everything a benchmark command needs, built from the shared options."""
+
+    cfg: RunConfig
+    env: Environment
+    spec: RequestSpec
+    counter: Counter | None
+    prompts_for: Callable[[int, int], list[Prompt]]
+
+
+def _setup(*, url, model, mode, levels, max_concurrency, num_requests, input_len, output_len,
+           prompts, endpoint, ignore_eos, temperature, warmup, seed, timeout, slo_ttft_ms,
+           slo_tpot_ms, tokenizer, api_key, notes) -> Setup:
     if endpoint not in ("chat", "completions"):
         raise typer.BadParameter("--endpoint must be 'chat' or 'completions'")
-    mode = "concurrency" if concurrency is not None else "rate"
-    levels = parse_levels(concurrency if concurrency is not None else rate)
-    if mode == "concurrency" and any(math.isinf(v) or v != int(v) for v in levels):
-        raise typer.BadParameter("--concurrency levels must be whole numbers")
-
     cfg = RunConfig(
         url=url, model=model, endpoint=endpoint, prompts=prompts, input_len=input_len,
         output_len=output_len, mode=mode, levels=levels, max_concurrency=max_concurrency,
@@ -123,35 +126,160 @@ def run(
     )
     spec = RequestSpec(url=url, model=model, endpoint=endpoint, output_len=output_len,
                        ignore_eos=ignore_eos, temperature=temperature, api_key=api_key)
-    counter = make_counter(tokenizer)
 
-    def prompts_for(n: int, s: int):
+    def prompts_for(n: int, s: int) -> list[Prompt]:
         return load_prompts(prompts, n, input_len, s, tokenizer)
 
-    def on_level(lv) -> None:
-        sm = lv.summary
-        ttft = f"{sm.ttft.p50 * 1000:.0f} ms" if sm.ttft.p50 is not None else "-"
-        console.print(f"  {lv.label:>10}  {sm.completed} ok, {sm.failed} failed, "
-                      f"{sm.output_throughput:.1f} tok/s, TTFT p50 {ttft}")
+    return Setup(cfg, env, spec, make_counter(tokenizer), prompts_for)
 
-    console.print(f"servebench {__version__}: {mode} sweep {levels} against {url} ({model})")
-    try:
-        levels_out = asyncio.run(run_sweep(
-            spec, prompts_for, mode, levels, num_requests, warmup_requests=warmup,
-            timeout=timeout, seed=seed, max_concurrency=max_concurrency,
-            slo_ttft_ms=slo_ttft_ms, slo_tpot_ms=slo_tpot_ms, counter=counter,
-            on_level=on_level,
-        ))
-    except RuntimeError as e:
-        console.print(f"[red]{e}[/red]")
-        raise typer.Exit(1) from e
 
-    result = RunResult(label=label or (out.stem if out else model), config=cfg,
-                       environment=env, levels=levels_out)
+def _print_level(lv: LevelResult, verdict: str = "") -> None:
+    sm = lv.summary
+    ttft = f"{sm.ttft.p50 * 1000:.0f} ms" if sm.ttft.p50 is not None else "-"
+    in_slo = f", {sm.slo_attainment * 100:.0f}% in SLO" if sm.slo_attainment is not None else ""
+    console.print(f"  {lv.label:>10}  {sm.completed} ok, {sm.failed} failed, "
+                  f"{sm.output_throughput:.1f} tok/s, TTFT p50 {ttft}{in_slo}{verdict}")
+
+
+def _finish(result: RunResult, out: Path | None) -> None:
     print_run(result, console)
     if out:
         save_run(result, out)
         console.print(f"Saved {out}")
+
+
+@app.command()
+def run(
+    url: Url,
+    model: Model,
+    concurrency: Annotated[str | None, typer.Option(
+        help="Closed-loop sweep: comma-separated in-flight request counts, e.g. 1,2,4,8")] = None,
+    rate: Annotated[str | None, typer.Option(
+        help="Open-loop sweep: comma-separated Poisson arrival rates in req/s; 'inf' sends "
+             "all at once")] = None,
+    max_concurrency: MaxConcurrency = None,
+    num_requests: NumRequests = None,
+    input_len: InputLen = 256,
+    output_len: OutputLen = 128,
+    prompts: Prompts = "synthetic",
+    endpoint: Endpoint = "chat",
+    ignore_eos: IgnoreEos = True,
+    temperature: Temperature = 0.0,
+    warmup: Warmup = 2,
+    seed: Seed = 0,
+    timeout: Timeout = 300.0,
+    slo_ttft_ms: SloTtft = 500.0,
+    slo_tpot_ms: SloTpot = 50.0,
+    tokenizer: Tokenizer = None,
+    api_key: ApiKey = None,
+    label: Label = None,
+    notes: Notes = None,
+    out: Out = None,
+) -> None:
+    """Benchmark an endpoint over a sweep of load levels."""
+    if (concurrency is None) == (rate is None):
+        raise typer.BadParameter("give exactly one of --concurrency or --rate")
+    mode = "concurrency" if concurrency is not None else "rate"
+    levels = parse_levels(concurrency if concurrency is not None else rate)
+    if mode == "concurrency" and any(math.isinf(v) or v != int(v) for v in levels):
+        raise typer.BadParameter("--concurrency levels must be whole numbers")
+    st = _setup(url=url, model=model, mode=mode, levels=levels, max_concurrency=max_concurrency,
+                num_requests=num_requests, input_len=input_len, output_len=output_len,
+                prompts=prompts, endpoint=endpoint, ignore_eos=ignore_eos,
+                temperature=temperature, warmup=warmup, seed=seed, timeout=timeout,
+                slo_ttft_ms=slo_ttft_ms, slo_tpot_ms=slo_tpot_ms, tokenizer=tokenizer,
+                api_key=api_key, notes=notes)
+
+    console.print(f"servebench {__version__}: {mode} sweep {levels} against {url} ({model})")
+    try:
+        levels_out = asyncio.run(run_sweep(
+            st.spec, st.prompts_for, mode, levels, num_requests, warmup_requests=warmup,
+            timeout=timeout, seed=seed, max_concurrency=max_concurrency,
+            slo_ttft_ms=slo_ttft_ms, slo_tpot_ms=slo_tpot_ms, counter=st.counter,
+            on_level=_print_level,
+        ))
+    except RuntimeError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1) from e
+    _finish(RunResult(label=label or (out.stem if out else model), config=st.cfg,
+                      environment=st.env, levels=levels_out), out)
+
+
+@app.command("find-capacity")
+def find_capacity_cmd(
+    url: Url,
+    model: Model,
+    mode: Annotated[str, typer.Option(
+        help="'concurrency' (in-flight requests) or 'rate' (Poisson req/s)")] = "concurrency",
+    start: Annotated[float, typer.Option(help="First load level to try")] = 1,
+    max_load: Annotated[float, typer.Option("--max", help="Highest load level to try")] = 256,
+    target: Annotated[float, typer.Option(
+        help="Share of requests that must meet the SLOs for a level to pass")] = 0.9,
+    tolerance: Annotated[float, typer.Option(
+        help="Stop when the pass/fail gap is within this fraction of the passing load")] = 0.1,
+    max_concurrency: MaxConcurrency = None,
+    num_requests: NumRequests = None,
+    input_len: InputLen = 256,
+    output_len: OutputLen = 128,
+    prompts: Prompts = "synthetic",
+    endpoint: Endpoint = "chat",
+    ignore_eos: IgnoreEos = True,
+    temperature: Temperature = 0.0,
+    warmup: Warmup = 2,
+    seed: Seed = 0,
+    timeout: Timeout = 300.0,
+    slo_ttft_ms: SloTtft = 500.0,
+    slo_tpot_ms: SloTpot = 50.0,
+    tokenizer: Tokenizer = None,
+    api_key: ApiKey = None,
+    label: Label = None,
+    notes: Notes = None,
+    out: Out = None,
+) -> None:
+    """Find the highest load that still meets the SLOs (doubling, then binary search).
+
+    A level passes when no request failed and at least --target of the requests met
+    --slo-ttft-ms and --slo-tpot-ms. Every level tried is saved, so `report` can chart it.
+    """
+    if mode not in ("concurrency", "rate"):
+        raise typer.BadParameter("--mode must be 'concurrency' or 'rate'")
+    if not 0 < target <= 1:
+        raise typer.BadParameter("--target must be between 0 and 1, e.g. 0.9")
+    if slo_ttft_ms is None and slo_tpot_ms is None:
+        raise typer.BadParameter("find-capacity needs --slo-ttft-ms and/or --slo-tpot-ms")
+    if start <= 0 or max_load < start or math.isinf(max_load):
+        raise typer.BadParameter("need 0 < --start <= --max, and a finite --max")
+    st = _setup(url=url, model=model, mode=mode, levels=[], max_concurrency=max_concurrency,
+                num_requests=num_requests, input_len=input_len, output_len=output_len,
+                prompts=prompts, endpoint=endpoint, ignore_eos=ignore_eos,
+                temperature=temperature, warmup=warmup, seed=seed, timeout=timeout,
+                slo_ttft_ms=slo_ttft_ms, slo_tpot_ms=slo_tpot_ms, tokenizer=tokenizer,
+                api_key=api_key, notes=notes)
+
+    def on_level(lv: LevelResult) -> None:
+        _print_level(lv, "  -> pass" if passes(lv, target) else "  -> FAIL")
+
+    async def go():
+        await check_warmup(st.spec, st.prompts_for, warmup, timeout, seed)
+        measure = level_runner(
+            st.spec, st.prompts_for, mode, num_requests, timeout=timeout, seed=seed,
+            max_concurrency=max_concurrency, slo_ttft_ms=slo_ttft_ms, slo_tpot_ms=slo_tpot_ms,
+            counter=st.counter, on_level=on_level,
+        )
+        return await find_capacity(measure, mode, start=start, max_value=max_load,
+                                   target=target, tolerance=tolerance,
+                                   slo_ttft_ms=slo_ttft_ms, slo_tpot_ms=slo_tpot_ms)
+
+    console.print(f"servebench {__version__}: finding {mode} capacity against {url} ({model}); "
+                  f"a level passes with no errors and {target * 100:.0f}% of requests in SLO")
+    try:
+        levels_out, cap = asyncio.run(go())
+    except RuntimeError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1) from e
+    st.cfg.levels = [lv.value for lv in levels_out]
+    _finish(RunResult(label=label or (out.stem if out else model), config=st.cfg,
+                      environment=st.env, levels=levels_out, capacity=cap), out)
 
 
 @app.command()
@@ -189,7 +317,7 @@ def fake_server(
     slowdown: Annotated[float, typer.Option(
         help="Extra latency per extra in-flight request, as a fraction (0.1 = +10%)")] = 0.0,
 ) -> None:
-    """Run a fake OpenAI-compatible server with known timings (needs servebench[fake])."""
+    """Run a fake OpenAI-compatible server with known timings (needs the fake extra)."""
     try:
         from .fake_server import FakeConfig, serve
     except ImportError as e:

@@ -60,6 +60,8 @@ class Summary(BaseModel):
     output_throughput: float
     input_throughput: float | None = None
     goodput: float
+    slo_attainment: float | None = Field(
+        None, description="Share of all requests (failed ones included) that met the SLOs")
     slo_ttft_ms: float | None
     slo_tpot_ms: float | None
     ttft: Stats
@@ -132,3 +134,21 @@ class RunResult(BaseModel):
     config: RunConfig
     environment: Environment
     levels: list[LevelResult]
+    capacity: CapacityResult | None = Field(None, description="Set by `find-capacity`")
+
+
+class CapacityResult(BaseModel):
+    """Highest load that met the SLOs, found by `servebench find-capacity`."""
+
+    model_config = ConfigDict(ser_json_inf_nan="strings")
+
+    mode: Literal["concurrency", "rate"]
+    target: float = Field(description="Share of requests that must meet the SLOs, e.g. 0.9")
+    slo_ttft_ms: float | None
+    slo_tpot_ms: float | None
+    capacity: float | None = Field(None, description="Highest passing load; None if none passed")
+    first_fail: float | None = Field(None, description="Lowest failing load; None if none failed")
+    reason: Literal["converged", "max_reached", "start_failed"]
+
+
+RunResult.model_rebuild()  # resolve the forward reference to CapacityResult

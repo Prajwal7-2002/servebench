@@ -62,12 +62,17 @@ def _num(x: float | None, digits: int = 1) -> str:
 
 
 COLUMNS = ["load", "ok/fail", "req/s", "out tok/s", "TTFT p50", "TTFT p99", "TPOT p50",
-           "TPOT p99", "ITL p50", "E2E p50 (s)", "goodput", "tok/chunk"]
-# The terminal table drops ITL p50 (equal to TPOT at one token per chunk; it stays in
-# run.json and the MD/HTML reports) so it fits 80 columns even with 5-digit latencies.
+           "TPOT p99", "ITL p50", "E2E p50 (s)", "goodput", "tok/chunk", "in SLO"]
+# The terminal table drops ITL p50 (equal to TPOT at one token per chunk) and "in SLO" (the
+# run progress lines show it); both stay in run.json and the MD/HTML reports. That keeps it
+# inside 80 columns even with 5-digit latencies.
 TERMINAL_COLUMNS = ["load", "ok/\nfail", "req/s", "out\ntok/s", "TTFT\np50", "TTFT\np99",
                     "TPOT\np50", "TPOT\np99", "E2E\np50 s", "good-\nput", "tok/\nchunk"]
-_TERMINAL_SKIP = COLUMNS.index("ITL p50")
+_TERMINAL_SKIP = {COLUMNS.index("ITL p50"), COLUMNS.index("in SLO")}
+
+
+def _pct(x: float | None) -> str:
+    return "-" if x is None else f"{x * 100:.0f}%"
 
 
 def level_row(lv: LevelResult) -> list[str]:
@@ -76,17 +81,49 @@ def level_row(lv: LevelResult) -> list[str]:
         lv.label, f"{s.completed}/{s.failed}", _num(s.request_throughput, 2),
         _num(s.output_throughput), _ms(s.ttft.p50), _ms(s.ttft.p99), _ms(s.tpot.p50),
         _ms(s.tpot.p99), _ms(s.itl.p50), _num(s.e2e.p50, 2), _num(s.goodput, 2),
-        _num(s.tokens_per_chunk, 2),
+        _num(s.tokens_per_chunk, 2), _pct(s.slo_attainment),
     ]
 
 
-def slo_text(s: Summary) -> str:
+def _slo_desc(ttft_ms: float | None, tpot_ms: float | None) -> str:
     parts = []
-    if s.slo_ttft_ms is not None:
-        parts.append(f"TTFT < {s.slo_ttft_ms:g} ms")
-    if s.slo_tpot_ms is not None:
-        parts.append(f"TPOT < {s.slo_tpot_ms:g} ms")
+    if ttft_ms is not None:
+        parts.append(f"TTFT < {ttft_ms:g} ms")
+    if tpot_ms is not None:
+        parts.append(f"TPOT < {tpot_ms:g} ms")
     return " and ".join(parts) or "no SLO"
+
+
+def slo_text(s: Summary) -> str:
+    return _slo_desc(s.slo_ttft_ms, s.slo_tpot_ms)
+
+
+def capacity_text(run: RunResult) -> str | None:
+    """One-line answer from `find-capacity`, e.g. 'Capacity: 12 concurrent requests (...)'."""
+    cap = run.capacity
+    if cap is None:
+        return None
+    unit = "concurrent requests" if cap.mode == "concurrency" else "req/s"
+    slo = _slo_desc(cap.slo_ttft_ms, cap.slo_tpot_ms)
+    target = _pct(cap.target)
+    by_value = {lv.value: lv.summary for lv in run.levels}
+
+    def met(v: float | None) -> str:
+        """'100%' or '23% (3 failed)': share of requests at load v that met the SLO."""
+        s = by_value.get(v)
+        if s is None:
+            return "?"
+        return _pct(s.slo_attainment) + (f" ({s.failed} failed)" if s.failed else "")
+
+    rule = f"SLO: {slo} for {target} of requests"
+    if cap.reason == "start_failed":
+        return (f"No capacity found: even at {cap.first_fail:g} {unit}, only "
+                f"{met(cap.first_fail)} met the SLO. {rule}.")
+    if cap.reason == "max_reached":
+        return (f"Capacity: at least {cap.capacity:g} {unit} ({met(cap.capacity)} met the SLO; "
+                f"the search stopped at --max). {rule}.")
+    return (f"Capacity: {cap.capacity:g} {unit}. At {cap.capacity:g}, {met(cap.capacity)} met "
+            f"the SLO; at {cap.first_fail:g}, only {met(cap.first_fail)}. {rule}.")
 
 
 def warnings_for(run: RunResult) -> list[str]:
@@ -96,6 +133,11 @@ def warnings_for(run: RunResult) -> list[str]:
         out.append("Some token counts are chunk counts (server sent no `usage` and no "
                    "--tokenizer was given); TPOT and tok/s may be off if a chunk holds "
                    "several tokens.")
+    cap = run.capacity
+    if cap and run.levels and (run.levels[0].summary.slo_ttft_ms, run.levels[0].summary.slo_tpot_ms
+                               ) != (cap.slo_ttft_ms, cap.slo_tpot_ms):
+        out.append("The capacity was found with different SLOs than this report uses; the "
+                   "'in SLO' figures are rescored, the capacity is not. Rerun find-capacity.")
     for lv in run.levels:
         if lv.client_lag_p99_ms is not None and lv.client_lag_p99_ms > 10:
             out.append(f"{lv.label}: client event-loop lag p99 {lv.client_lag_p99_ms:.0f} ms; "
@@ -117,8 +159,10 @@ def print_run(run: RunResult, console: Console | None = None) -> None:
         table.add_column(col, justify="left" if col == "load" else "right", no_wrap=True)
     for lv in run.levels:
         row = level_row(lv)
-        table.add_row(*row[:_TERMINAL_SKIP], *row[_TERMINAL_SKIP + 1:])
+        table.add_row(*(v for i, v in enumerate(row) if i not in _TERMINAL_SKIP))
     console.print(table)
+    if cap := capacity_text(run):
+        console.print(f"[bold]{cap}[/bold]")
     if run.levels:
         console.print(f"[dim]Latencies in ms unless noted. Goodput = req/s meeting "
                       f"{slo_text(run.levels[0].summary)}.[/dim]")
@@ -269,7 +313,10 @@ def markdown(runs: list[RunResult], image_dir: Path, image_prefix: str = "") -> 
     lines += [f"![Latency and throughput vs load]({image_prefix}sweep.png)", "",
               f"![TTFT and TPOT distributions]({image_prefix}distribution.png)", ""]
     for run in runs:
-        lines += [f"## {run.label}", "", "| | |", "|---|---|"]
+        lines += [f"## {run.label}", ""]
+        if cap := capacity_text(run):
+            lines += [f"**{cap}**", ""]
+        lines += ["| | |", "|---|---|"]
         lines += [f"| {k} | {v} |" for k, v in _config_rows(run)]
         lines += ["", "| " + " | ".join(COLUMNS) + " |",
                   "|" + "---|" * len(COLUMNS)]
@@ -306,6 +353,7 @@ th:first-child, td:first-child { text-align:left; }
 th { color:var(--ink2); font-weight:600; }
 .cfg td { text-align:left; white-space:normal; } .cfg td:first-child { color:var(--ink2); }
 .note { color:var(--ink2); font-size:13px; }
+.cap { font-weight:600; margin:0 0 12px; }
 .warn { color:var(--warn); font-size:13px; margin:4px 0; }
 """
 
@@ -333,7 +381,10 @@ def html_report(runs: list[RunResult]) -> str:
                  "the highest load level of each run"),
     ]
     for run in runs:
-        parts.append(f"<h2>{esc(run.label)}</h2><div class='scroll'><table class='cfg'>")
+        parts.append(f"<h2>{esc(run.label)}</h2>")
+        if cap := capacity_text(run):
+            parts.append(f"<p class='cap'>{esc(cap)}</p>")
+        parts.append("<div class='scroll'><table class='cfg'>")
         parts += [f"<tr><td>{esc(k)}</td><td>{esc(v)}</td></tr>" for k, v in _config_rows(run)]
         parts.append("</table></div><div class='scroll'><table><tr>")
         parts += [f"<th>{esc(c)}</th>" for c in COLUMNS]

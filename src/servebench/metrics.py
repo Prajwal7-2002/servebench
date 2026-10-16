@@ -56,6 +56,7 @@ def summarize(
         input_throughput=(sum(prompt_tokens) / dur) if len(prompt_tokens) == len(ok) and ok
         else None,
         goodput=good / dur,
+        slo_attainment=(good / len(requests)) if requests else None,
         slo_ttft_ms=slo_ttft_ms,
         slo_tpot_ms=slo_tpot_ms,
         ttft=stats([r.ttft for r in ok if r.ttft is not None]),
