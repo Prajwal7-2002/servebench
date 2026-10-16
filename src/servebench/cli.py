@@ -406,8 +406,8 @@ def quick(
 
     for w in warnings_for(result):
         console.print(f"[yellow]! {w}[/yellow]")
-    console.print(f"[dim]Saved {out}. Details and charts: servebench report {out} "
-                  f"--out report.html[/dim]")
+    console.print(f"[dim]Saved {out}. Share it: servebench share {out}  |  full report: "
+                  f"servebench report {out} --out report.html[/dim]")
 
 
 @app.command()
@@ -437,6 +437,29 @@ def report(
         except ValueError as e:
             raise typer.BadParameter(str(e)) from e
         console.print(f"Wrote {out}")
+
+
+@app.command()
+def share(
+    run_file: Annotated[Path, typer.Argument(help="A run.json (from quick, run or "
+                                                  "find-capacity)", exists=True,
+                                             dir_okay=False)],
+    card: Annotated[Path | None, typer.Option(
+        help="Where to write the PNG card (default: next to the run, <name>-card.png)")] = None,
+    no_card: Annotated[bool, typer.Option("--no-card", help="Only print the Markdown")] = False,
+) -> None:
+    """Print a Markdown summary to paste into a post or issue, and write a PNG card."""
+    from . import share as share_mod
+
+    try:
+        run_ = load_run(run_file)
+    except RunFileError as e:
+        raise typer.BadParameter(str(e)) from e
+    # plain print, not rich: the Markdown must come out exactly as written, ready to copy
+    print(share_mod.markdown(run_))
+    if not no_card:
+        path = share_mod.card(run_, card or run_file.with_name(f"{run_file.stem}-card.png"))
+        console.print(f"\n[dim]Card image: {path}[/dim]")
 
 
 @app.command("mock-server")

@@ -106,3 +106,28 @@ def test_quick_with_nothing_running(monkeypatch):
     res = CliRunner().invoke(app, ["quick"])
     assert res.exit_code == 1
     assert "No local LLM server found" in res.output and "ollama serve" in res.output
+
+
+def test_share_markdown_and_card(tmp_path):
+    from servebench import share
+
+    r = run_with([level(1, 0.05, 0.67), level(4, 0.1, 1.3), level(5, 0.7, 1.6)], 4, 5)
+    md = share.markdown(r)
+    assert "| Users | Total tok/s | Per user tok/s |" in md
+    assert "| 4 |" in md and "**Capacity: 4 users**" in md
+    assert "servebench" in md and "synthetic prompts of ~256 tokens" in md
+    path = share.card(r, tmp_path / "card.png")
+    assert path.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n" and path.stat().st_size > 20_000
+
+
+def test_share_command(tmp_path):
+    from servebench.report import save_run
+
+    f = tmp_path / "r.json"
+    save_run(run_with([level(1, 0.05, 0.67), level(2, 0.7, 1.3)], 1, 2), f)
+    res = CliRunner().invoke(app, ["share", str(f)])
+    assert res.exit_code == 0, res.output
+    assert "**Capacity: 1 user** (" in res.output
+    assert (tmp_path / "r-card.png").exists()
+    res = CliRunner().invoke(app, ["share", str(f), "--no-card", "--card", str(tmp_path / "x.png")])
+    assert res.exit_code == 0 and not (tmp_path / "x.png").exists()
