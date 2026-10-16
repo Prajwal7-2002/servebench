@@ -10,3 +10,7 @@ runs/
 # personal study notes, not part of the repo
 decisions.md
 flow.md
+
+# output of `servebench quick` / `share` when run from the repo folder
+servebench-quick-*.json
+servebench-quick-*-card.png
