@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import itertools
 import math
 import random
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
 import httpx
 import numpy as np
@@ -186,23 +187,61 @@ async def run_sweep(
     on_level: Callable[[LevelResult], None] | None = None,
 ) -> list[LevelResult]:
     """Run every level. `prompts_for(n, seed)` returns n prompts; each level gets fresh ones."""
-    if warmup_requests:
-        wr = await warmup(spec, prompts_for(warmup_requests, seed + 10_000), timeout)
-        bad = [r for r in wr if not r.ok]
-        if len(bad) == len(wr):
-            raise RuntimeError(f"all warm-up requests failed, first error: {bad[0].error}")
-    out = []
-    for k, value in enumerate(levels):
+    await check_warmup(spec, prompts_for, warmup_requests, timeout, seed)
+    measure = level_runner(
+        spec, prompts_for, mode, num_requests, timeout=timeout, seed=seed,
+        max_concurrency=max_concurrency, slo_ttft_ms=slo_ttft_ms, slo_tpot_ms=slo_tpot_ms,
+        counter=counter, on_level=on_level,
+    )
+    return [await measure(value) for value in levels]
+
+
+async def check_warmup(
+    spec: RequestSpec,
+    prompts_for: Callable[[int, int], list[Prompt]],
+    n: int,
+    timeout: float,
+    seed: int = 0,
+) -> None:
+    """Run the warm-up requests; raise if every one of them fails (wrong URL, model, ...)."""
+    if not n:
+        return
+    wr = await warmup(spec, prompts_for(n, seed + 10_000), timeout)
+    bad = [r for r in wr if not r.ok]
+    if len(bad) == len(wr):
+        raise RuntimeError(f"all warm-up requests failed, first error: {bad[0].error}")
+
+
+def level_runner(
+    spec: RequestSpec,
+    prompts_for: Callable[[int, int], list[Prompt]],
+    mode: str,
+    num_requests: int | None,
+    *,
+    timeout: float = 300.0,
+    seed: int = 0,
+    max_concurrency: int | None = None,
+    slo_ttft_ms: float | None = None,
+    slo_tpot_ms: float | None = None,
+    counter: Counter | None = None,
+    on_level: Callable[[LevelResult], None] | None = None,
+) -> Callable[[float], Awaitable[LevelResult]]:
+    """Return `measure(value)`, which runs one level; the k-th call uses seed + k."""
+    calls = itertools.count()
+
+    async def measure(value: float) -> LevelResult:
+        k = next(calls)
         n = num_requests or default_num_requests(mode, value)
         level = await run_level(
             spec, prompts_for(n, seed + k), mode, value, timeout=timeout, seed=seed + k,
             max_concurrency=max_concurrency, slo_ttft_ms=slo_ttft_ms, slo_tpot_ms=slo_tpot_ms,
             counter=counter,
         )
-        out.append(level)
         if on_level:
             on_level(level)
-    return out
+        return level
+
+    return measure
 
 
 def default_num_requests(mode: str, value: float) -> int:
