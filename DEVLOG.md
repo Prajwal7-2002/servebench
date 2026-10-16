@@ -26,3 +26,18 @@
 - First integration test used a 10 ms margin around the SLO and found 3 instead of 4: first-
   round connection setup and timer jitter add ~10-20 ms on Windows. Widened to 25 ms.
 - One unexplained failure in 11 full-suite runs; could not reproduce in 9 reruns. Watch CI.
+
+## 2026-10-16: first real runs (Ollama) and a connection bug
+
+- Hardware is not CPU-only: Ollama runs qwen2.5:0.5b (Q4_K_M) fully on the laptop's
+  RTX 3050 6 GB (`/api/ps` size_vram = size). TPOT 4.8 ms, ~200 tok/s for one stream.
+- First run showed TTFT ~290 ms whatever the prompt length (46 -> 1054 tokens added only
+  ~95 ms). Cause: servebench broke out of the stream at [DONE], httpx closed the connection,
+  so every request reconnected; to `localhost` on Windows that tries ::1 first and costs
+  ~270 ms. Fixed (read to end of body), test asserts 4 requests -> 1 connection, and
+  `localhost` URLs now get a warning. TTFT p50 at c=1 dropped 289 -> 17-28 ms.
+- Lesson: the fake server ran on 127.0.0.1 where reconnecting is ~free, so tests could not
+  see it. Count connections, not just timings.
+- Real finding: Ollama with default settings serves one request at a time here. c=2 gives
+  the same 196-199 tok/s as c=1 and TTFT 686 ms (= one full request). Capacity under
+  TTFT < 500 ms / TPOT < 50 ms: 1 concurrent request. Next: OLLAMA_NUM_PARALLEL=4.

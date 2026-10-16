@@ -103,7 +103,11 @@ def capacity_text(run: RunResult) -> str | None:
     cap = run.capacity
     if cap is None:
         return None
-    unit = "concurrent requests" if cap.mode == "concurrency" else "req/s"
+    def load(v: float | None) -> str:
+        if cap.mode == "rate":
+            return f"{v:g} req/s"
+        return f"{v:g} concurrent request" + ("" if v == 1 else "s")
+
     slo = _slo_desc(cap.slo_ttft_ms, cap.slo_tpot_ms)
     target = _pct(cap.target)
     by_value = {lv.value: lv.summary for lv in run.levels}
@@ -117,12 +121,12 @@ def capacity_text(run: RunResult) -> str | None:
 
     rule = f"SLO: {slo} for {target} of requests"
     if cap.reason == "start_failed":
-        return (f"No capacity found: even at {cap.first_fail:g} {unit}, only "
+        return (f"No capacity found: even at {load(cap.first_fail)}, only "
                 f"{met(cap.first_fail)} met the SLO. {rule}.")
     if cap.reason == "max_reached":
-        return (f"Capacity: at least {cap.capacity:g} {unit} ({met(cap.capacity)} met the SLO; "
+        return (f"Capacity: at least {load(cap.capacity)} ({met(cap.capacity)} met the SLO; "
                 f"the search stopped at --max). {rule}.")
-    return (f"Capacity: {cap.capacity:g} {unit}. At {cap.capacity:g}, {met(cap.capacity)} met "
+    return (f"Capacity: {load(cap.capacity)}. At {cap.capacity:g}, {met(cap.capacity)} met "
             f"the SLO; at {cap.first_fail:g}, only {met(cap.first_fail)}. {rule}.")
 
 
