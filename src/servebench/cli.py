@@ -23,7 +23,7 @@ from .capacity import find_capacity, passes
 from .client import RequestSpec
 from .load import check_warmup, level_runner, run_sweep
 from .prompts import Prompt, load_prompts
-from .report import load_run, print_run, resummarize, save_run, write_report
+from .report import RunFileError, load_run, print_run, resummarize, save_run, write_report
 from .results import Environment, LevelResult, RunConfig, RunResult
 from .tokens import Counter, make_counter
 
@@ -303,7 +303,10 @@ def report(
         help="Recompute goodput with this TPOT SLO")] = None,
 ) -> None:
     """Print and compare saved runs; optionally write an HTML/Markdown report with charts."""
-    loaded = [load_run(p) for p in runs]
+    try:
+        loaded = [load_run(p) for p in runs]
+    except RunFileError as e:
+        raise typer.BadParameter(str(e)) from e
     if slo_ttft_ms is not None or slo_tpot_ms is not None:
         for r in loaded:
             resummarize(r, slo_ttft_ms if slo_ttft_ms is not None else r.config.slo_ttft_ms,

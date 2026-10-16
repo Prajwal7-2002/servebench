@@ -143,3 +143,40 @@ def test_report_missing_file_is_a_clean_error(tmp_path):
     res = runner.invoke(app, ["report", str(tmp_path / "nope.json")])
     assert res.exit_code != 0
     assert "does not exist" in res.output
+
+
+def test_schema_version_written_and_old_files_still_load(tmp_path):
+    run = sample_run("a")
+    path = tmp_path / "a.json"
+    save_run(run, path)
+    data = json.loads(path.read_text())
+    assert data["schema_version"] == 1
+    del data["schema_version"]  # a file from before the field existed
+    path.write_text(json.dumps(data))
+    assert load_run(path).schema_version == 1
+
+
+def test_newer_or_broken_run_files_give_clear_errors(tmp_path):
+    from servebench.report import RunFileError
+
+    run = sample_run("a")
+    newer = tmp_path / "newer.json"
+    save_run(run, newer)
+    data = json.loads(newer.read_text())
+    data["schema_version"] = 99
+    newer.write_text(json.dumps(data))
+    with pytest.raises(RunFileError, match="newer servebench"):
+        load_run(newer)
+
+    junk = tmp_path / "junk.json"
+    junk.write_text("not json at all")
+    with pytest.raises(RunFileError, match="not a servebench run file"):
+        load_run(junk)
+
+    wrong = tmp_path / "wrong.json"
+    wrong.write_text('{"label": "x"}')
+    with pytest.raises(RunFileError, match="not a valid servebench run file"):
+        load_run(wrong)
+
+    res = runner.invoke(app, ["report", str(newer)])
+    assert res.exit_code != 0 and "newer servebench" in res.output

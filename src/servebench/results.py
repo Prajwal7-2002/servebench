@@ -127,9 +127,16 @@ class Environment(BaseModel):
     notes: str | None = None
 
 
+SCHEMA_VERSION = 1
+"""Bump when run.json changes in a way older servebench versions cannot read. Adding an
+optional field with a default does not need a bump; renaming or changing meaning does."""
+
+
 class RunResult(BaseModel):
     model_config = ConfigDict(ser_json_inf_nan="strings")
 
+    # files written before this field existed have no version: they are version 1
+    schema_version: int = SCHEMA_VERSION
     label: str
     config: RunConfig
     environment: Environment

@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import html
 import io
+import json
 import math
 from pathlib import Path
 
@@ -13,11 +14,12 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
+from pydantic import ValidationError  # noqa: E402
 from rich.console import Console  # noqa: E402
 from rich.table import Table  # noqa: E402
 
 from .metrics import summarize  # noqa: E402
-from .results import LevelResult, RunResult, Summary  # noqa: E402
+from .results import SCHEMA_VERSION, LevelResult, RunResult, Summary  # noqa: E402
 
 # Categorical slots in fixed order (one per run), stepped separately for light and dark.
 THEMES = {
@@ -35,8 +37,26 @@ THEMES = {
 MAX_RUNS = 8
 
 
+class RunFileError(ValueError):
+    """A run.json that can't be read: newer format, or not a servebench file."""
+
+
 def load_run(path: str | Path) -> RunResult:
-    return RunResult.model_validate_json(Path(path).read_text(encoding="utf-8"))
+    text = Path(path).read_text(encoding="utf-8")
+    try:
+        version = int(json.loads(text).get("schema_version", 1))
+    except (json.JSONDecodeError, AttributeError, TypeError, ValueError) as e:
+        raise RunFileError(f"{path} is not a servebench run file ({e})") from e
+    if version > SCHEMA_VERSION:
+        raise RunFileError(f"{path} was written by a newer servebench (file format "
+                           f"{version}, this version reads up to {SCHEMA_VERSION}); upgrade "
+                           "servebench to read it")
+    try:
+        return RunResult.model_validate_json(text)
+    except ValidationError as e:
+        raise RunFileError(f"{path} is not a valid servebench run file: "
+                           f"{e.error_count()} problem(s), first: {e.errors()[0]['msg']} "
+                           f"at {'.'.join(map(str, e.errors()[0]['loc']))}") from e
 
 
 def save_run(run: RunResult, path: str | Path) -> None:
