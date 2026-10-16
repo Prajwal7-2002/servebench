@@ -19,7 +19,7 @@ from urllib.parse import urlparse
 import typer
 from rich.console import Console
 
-from . import __version__
+from . import __version__, detect, system
 from .capacity import find_capacity, passes
 from .client import RequestSpec
 from .load import check_warmup, level_runner, run_sweep
@@ -111,6 +111,12 @@ class Setup:
     spec: RequestSpec
     counter: Counter | None
     prompts_for: Callable[[int, int], list[Prompt]]
+    server: detect.Server | None = None
+
+    def after_run(self) -> None:
+        """Ask the server about the model now that it's loaded (e.g. Ollama: on GPU?)."""
+        if self.server:
+            self.env.model_info = detect.model_info(self.server, self.cfg.model)
 
 
 def _setup(*, url, model, mode, levels, max_concurrency, num_requests, duration,
@@ -129,11 +135,17 @@ def _setup(*, url, model, mode, levels, max_concurrency, num_requests, duration,
         temperature=temperature, timeout=timeout, slo_ttft_ms=slo_ttft_ms,
         slo_tpot_ms=slo_tpot_ms, tokenizer=tokenizer,
     )
+    server = detect.identify(url)
+    host = urlparse(url).hostname or ""
     env = Environment(
         servebench_version=__version__, python=platform.python_version(),
         platform=f"{platform.system()} {platform.release()}", client_cpu=_cpu(),
         timestamp=datetime.now(UTC).isoformat(timespec="seconds"),
         server_models=_server_models(url, api_key), notes=notes,
+        local_server=host in ("127.0.0.1", "localhost", "::1", "0.0.0.0"),
+        engine=server.engine if server else None,
+        engine_version=server.version if server else None,
+        **system.describe_for_env(),
     )
     spec = RequestSpec(url=url, model=model, endpoint=endpoint, output_len=output_len,
                        ignore_eos=ignore_eos, temperature=temperature, api_key=api_key)
@@ -150,7 +162,7 @@ def _setup(*, url, model, mode, levels, max_concurrency, num_requests, duration,
     def prompts_for(n: int, s: int) -> list[Prompt]:
         return load_prompts(prompts, n, input_len, s, tokenizer)
 
-    return Setup(cfg, env, spec, make_counter(tokenizer), prompts_for)
+    return Setup(cfg, env, spec, make_counter(tokenizer), prompts_for, server)
 
 
 def _print_level(lv: LevelResult, verdict: str = "") -> None:
@@ -226,6 +238,7 @@ def run(
     except RuntimeError as e:
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(1) from e
+    st.after_run()
     _finish(RunResult(label=label or (out.stem if out else model), config=st.cfg,
                       environment=st.env, levels=levels_out), out)
 
@@ -306,6 +319,7 @@ def find_capacity_cmd(
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(1) from e
     st.cfg.levels = [lv.value for lv in levels_out]
+    st.after_run()
     _finish(RunResult(label=label or (out.stem if out else model), config=st.cfg,
                       environment=st.env, levels=levels_out, capacity=cap), out)
 

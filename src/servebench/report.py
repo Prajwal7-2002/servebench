@@ -352,9 +352,34 @@ def _config_rows(run: RunResult) -> list[tuple[str, str]]:
         ("model", c.model), ("url", c.url), ("endpoint", c.endpoint),
         ("prompts", f"{c.prompts}, input ~{c.input_len} tok, output {c.output_len} tok"),
         ("ignore_eos", str(c.ignore_eos)), ("seed", str(c.seed)),
-        ("client", f"{e.platform}, Python {e.python}, {e.client_cpu or '?'}"),
+        ("server", server_text(run)), ("machine", machine_text(run)),
+        ("client", f"servebench {e.servebench_version}, Python {e.python}, {e.platform}"),
         ("when", e.timestamp), ("notes", e.notes or "-"),
     ]
+
+
+def machine_text(run: RunResult) -> str:
+    """'AMD Ryzen 5 6600H, 15.3 GB RAM, NVIDIA GeForce RTX 3050 6GB Laptop GPU, 6.0 GB'"""
+    e = run.environment
+    parts = [e.cpu or e.client_cpu or "?"]
+    if e.ram_gb:
+        parts.append(f"{e.ram_gb:g} GB RAM")
+    parts += [g.split(", driver")[0] for g in e.gpus or []]
+    where = "" if e.local_server is not False else " (client machine; server is remote)"
+    return ", ".join(parts) + where
+
+
+def server_text(run: RunResult) -> str:
+    """'Ollama 0.35.1, qwen2.5:0.5b (494M, Q4_K_M, 100% on GPU)'"""
+    e, c = run.environment, run.config
+    engine = " ".join(x for x in (e.engine, e.engine_version) if x) or "?"
+    info = e.model_info or {}
+    facts = [str(info[k]) for k in ("parameters", "quantization") if info.get(k)]
+    if info.get("on_gpu"):
+        facts.append(f"{info['on_gpu']} on GPU")
+    if info.get("total_slots"):
+        facts.append(f"{info['total_slots']} slots")
+    return f"{engine}, {c.model}" + (f" ({', '.join(facts)})" if facts else "")
 
 
 def markdown(runs: list[RunResult], image_dir: Path, image_prefix: str = "") -> str:

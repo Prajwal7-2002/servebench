@@ -135,6 +135,15 @@ class Environment(BaseModel):
     timestamp: str
     server_models: list[str] | None = None
     notes: str | None = None
+    # machine running servebench (for a local server, the server's machine too)
+    cpu: str | None = None
+    ram_gb: float | None = None
+    gpus: list[str] | None = None
+    local_server: bool | None = Field(None, description="Server URL is this machine")
+    # what answered at the URL, and what it said about the model after the run
+    engine: str | None = None
+    engine_version: str | None = None
+    model_info: dict | None = None
 
 
 SCHEMA_VERSION = 1
