@@ -59,6 +59,22 @@ def _chunk_text(chunk: dict, endpoint: str) -> str:
     return choice.get("text") or ""
 
 
+def _finish_reason(chunk: dict) -> str | None:
+    choices = chunk.get("choices") or []
+    return choices[0].get("finish_reason") if choices else None
+
+
+def _parse_stream_end(*, done: bool, finish_reason: str | None) -> str | None:
+    """None if the stream ended properly, else the error to record.
+
+    Proper = a `[DONE]` line, or a finish_reason (some servers close without `[DONE]`).
+    A body that just stops has lost tokens we can't count, so it must not pass as a success.
+    """
+    if done or finish_reason:
+        return None
+    return "incomplete stream: ended without [DONE] or a finish_reason"
+
+
 async def send_request(
     client: httpx.AsyncClient,
     spec: RequestSpec,
@@ -73,6 +89,8 @@ async def send_request(
     res = RequestResult(index=index, start=start - (t0 if t0 is not None else start))
     pieces: list[str] = []
     usage: dict | None = None
+    finish_reason: str | None = None
+    streaming = False  # True once a 200 response started: errors after this are mid-stream
     try:
         async with client.stream(
             "POST", spec.full_url, json=spec.payload(prompt), headers=spec.headers()
@@ -81,6 +99,7 @@ async def send_request(
                 body = (await resp.aread()).decode(errors="replace")[:200]
                 res.ok, res.error = False, f"HTTP {resp.status_code}: {body}"
                 return res
+            streaming = True
             done_at: float | None = None
             # Read to the very end of the body, even after [DONE]: leaving the stream early
             # makes httpx close the connection, so every request would pay a new TCP connect.
@@ -95,12 +114,15 @@ async def send_request(
                 try:
                     chunk = json.loads(data)
                 except json.JSONDecodeError:
-                    continue
+                    # a lost chunk may be lost tokens: fail rather than undercount quietly
+                    res.ok, res.error = False, f"malformed chunk: {data[:80]!r}"
+                    return res
                 if "error" in chunk:
                     res.ok, res.error = False, f"stream error: {str(chunk['error'])[:200]}"
                     return res
                 if chunk.get("usage"):
                     usage = chunk["usage"]
+                finish_reason = _finish_reason(chunk) or finish_reason
                 text = _chunk_text(chunk, spec.endpoint)
                 # role-only and empty chunks do not count: TTFT is the first real content
                 if text:
@@ -110,8 +132,16 @@ async def send_request(
     except httpx.TimeoutException as e:
         res.ok, res.error = False, f"timeout ({type(e).__name__})"
         return res
+    except (httpx.RemoteProtocolError, httpx.ReadError) as e:
+        where = "connection dropped mid-stream" if streaming else "connection error"
+        res.ok, res.error = False, f"{where}: {type(e).__name__} {e}"[:200]
+        return res
     except httpx.HTTPError as e:
         res.ok, res.error = False, f"{type(e).__name__}: {e}"[:200]
+        return res
+
+    if err := _parse_stream_end(done=done_at is not None, finish_reason=finish_reason):
+        res.ok, res.error = False, err
         return res
 
     if not res.chunk_times:

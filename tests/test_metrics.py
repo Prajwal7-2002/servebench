@@ -73,3 +73,12 @@ def test_empty_level():
     s = summarize([], 0.0)
     assert s.completed == 0 and s.output_throughput == 0
     assert not math.isnan(s.request_throughput)
+
+
+def test_new_error_kinds_group_cleanly():
+    errs = ["connection dropped mid-stream: RemoteProtocolError peer closed",
+            "malformed chunk: '{bad'", "incomplete stream: ended without [DONE]",
+            "connection dropped mid-stream: ReadError x"]
+    reqs = [req(i, 0, 0, 0, ok=False, error=e) for i, e in enumerate(errs)]
+    assert summarize(reqs, 1.0).errors == {
+        "connection dropped mid-stream": 2, "malformed chunk": 1, "incomplete stream": 1}

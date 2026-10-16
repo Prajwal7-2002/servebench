@@ -41,6 +41,11 @@ class MockConfig:
     slowdown: float = 0.0
     send_usage: bool = True
     model: str = "mock-model"
+    # failure modes, for testing that broken streams are counted as failures:
+    drop_after: int | None = None  # close the connection after this many tokens
+    stall_after: int | None = None  # stop sending (but keep the connection) after N tokens
+    malformed_after: int | None = None  # send a data line that is not JSON after N tokens
+    no_done: bool = False  # end the body cleanly with no finish_reason and no [DONE]
 
 
 @dataclass
@@ -107,13 +112,24 @@ def create_app(cfg: MockConfig | None = None) -> FastAPI:
                 sent = 0
                 k = 0
                 while sent < n_out:
+                    if sent == cfg.drop_after:
+                        # an exception inside a streaming body makes the server abort the
+                        # connection without finishing the chunked response
+                        raise ConnectionAbortedError("mock: dropping the connection")
+                    if sent == cfg.stall_after:
+                        await asyncio.sleep(3600)
+                    if sent == cfg.malformed_after:
+                        yield "data: {this is not json\n\n"
                     m = min(cfg.tokens_per_chunk, n_out - sent)
                     # sleep to absolute deadlines so timer jitter does not add up
                     due = start + (cfg.ttft + k * cfg.itl * cfg.tokens_per_chunk) * factor
                     await sleep_until(due)
                     sent += m
                     k += 1
-                    yield chunk("tok " * m, finish="length" if sent >= n_out else None)
+                    last = sent >= n_out and not cfg.no_done
+                    yield chunk("tok " * m, finish="length" if last else None)
+                if cfg.no_done:
+                    return
                 if want_usage and cfg.send_usage:
                     usage = {"prompt_tokens": len(text.split()), "completion_tokens": n_out,
                              "total_tokens": len(text.split()) + n_out}

@@ -128,3 +128,46 @@ async def test_connections_are_reused(server):
             assert r.ok, r.error
     assert server.stats.total == 4
     assert len(server.stats.peers) == 1
+
+
+# Broken streams must count as failures: a request that lost half its tokens and still
+# counted as "ok" would make TPOT and throughput look better than the server really is.
+
+async def test_connection_dropped_mid_stream_is_a_failure(server):
+    server.cfg.ttft, server.cfg.itl, server.cfg.drop_after = 0.01, 0.002, 3
+    r = await _one(server, output_len=10)
+    assert not r.ok
+    assert r.error.startswith("connection dropped mid-stream")
+    assert r.num_chunks == 3  # what did arrive is kept for inspection
+
+
+async def test_stalled_stream_times_out(server):
+    server.cfg.ttft, server.cfg.itl, server.cfg.stall_after = 0.01, 0.002, 2
+    spec = RequestSpec(url=server.url, model="mock-model", output_len=10)
+    async with httpx.AsyncClient(timeout=0.5) as client:
+        r = await send_request(client, spec, PROMPT)
+    assert not r.ok
+    assert r.error.startswith("timeout")
+
+
+async def test_malformed_chunk_is_a_failure(server):
+    server.cfg.ttft, server.cfg.itl, server.cfg.malformed_after = 0.01, 0.002, 2
+    r = await _one(server, output_len=5)
+    assert not r.ok
+    assert r.error.startswith("malformed chunk")
+
+
+async def test_stream_without_done_or_finish_reason_is_incomplete(server):
+    server.cfg.ttft, server.cfg.itl, server.cfg.no_done = 0.01, 0.002, True
+    r = await _one(server, output_len=5)
+    assert not r.ok
+    assert r.error.startswith("incomplete stream")
+
+
+async def test_finish_reason_without_done_is_fine(server):
+    # some servers end with finish_reason and close the body without the [DONE] line
+    from servebench.client import _parse_stream_end
+
+    assert _parse_stream_end(done=False, finish_reason="stop") is None
+    assert _parse_stream_end(done=True, finish_reason=None) is None
+    assert _parse_stream_end(done=False, finish_reason=None).startswith("incomplete stream")
