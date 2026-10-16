@@ -127,7 +127,7 @@ async def test_connections_are_reused(server):
             r = await send_request(client, spec, PROMPT, index=i)
             assert r.ok, r.error
     assert server.stats.total == 4
-    assert len(server.stats.peers) == 1
+    assert server.stats.connections == 1
 
 
 # Broken streams must count as failures: a request that lost half its tokens and still

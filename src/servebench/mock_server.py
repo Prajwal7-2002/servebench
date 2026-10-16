@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -76,6 +76,24 @@ def create_app(cfg: MockConfig | None = None) -> FastAPI:
         s = app.state.stats
         return {"active": s.active, "peak": s.peak, "total": s.total,
                 "connections": len(s.peers)}
+
+    # Control API, so tests can run the mock in its own process (like a real server) and
+    # still change its behaviour per test. Not part of the OpenAI API.
+    @app.post("/_mock/config")
+    async def set_config(request: Request):
+        changes = await request.json()
+        unknown = [k for k in changes if k not in MockConfig.__dataclass_fields__]
+        if unknown:
+            return JSONResponse({"error": f"unknown mock settings: {unknown}"}, status_code=400)
+        for k, v in changes.items():
+            setattr(app.state.cfg, k, v)
+        return asdict(app.state.cfg)
+
+    @app.post("/_mock/reset")
+    async def reset(request: Request):
+        app.state.cfg = MockConfig(**(await request.json() or {}))
+        app.state.stats.reset()
+        return asdict(app.state.cfg)
 
     async def handle(request: Request, chat: bool):
         cfg: MockConfig = app.state.cfg
