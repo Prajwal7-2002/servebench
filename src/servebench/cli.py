@@ -367,8 +367,12 @@ def quick(
         if not found:
             ports = ", ".join(f"{name} :{port}" for port, name in detect.KNOWN_PORTS)
             console.print(f"[red]No local LLM server found[/red] (looked for {ports}).")
-            console.print("Start one, for example: ollama serve, then ollama pull "
-                          "qwen2.5:0.5b. Or pass --url for a server elsewhere.")
+            if detect.ollama_installed():
+                console.print("Ollama is installed but not running: open the Ollama app, or "
+                              "run `ollama serve` in another terminal, then run this again.")
+            else:
+                console.print("Start one, for example: ollama serve, then ollama pull "
+                              "qwen2.5:0.5b. Or pass --url for a server elsewhere.")
             raise typer.Exit(1)
         server = found[0]
         if len(found) > 1:

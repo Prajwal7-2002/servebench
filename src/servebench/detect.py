@@ -8,10 +8,13 @@ endpoints with short timeouts, in parallel, so `servebench quick` starts in abou
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
+from pathlib import Path
 from urllib.parse import urlparse
 
 # Default ports of the servers local users run. Order = preference when several are up.
@@ -76,6 +79,15 @@ def identify(base_url: str, timeout: float = 1.0) -> Server | None:
     elif isinstance(s := _get_json(f"{root}/stats", timeout), dict) and "connections" in s:
         server.engine = "servebench mock"
     return server
+
+
+def ollama_installed() -> bool:
+    """Ollama on PATH, or in its default Windows/macOS install location."""
+    if shutil.which("ollama"):
+        return True
+    candidates = [Path(os.environ.get("LOCALAPPDATA", "")) / "Programs/Ollama/ollama.exe",
+                  Path("/Applications/Ollama.app")]
+    return any(p.exists() for p in candidates if str(p) not in ("", "."))
 
 
 def find_local(host: str = "127.0.0.1", ports: list[tuple[int, str]] | None = None,

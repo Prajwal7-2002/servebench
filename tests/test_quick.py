@@ -103,6 +103,7 @@ def test_quick_end_to_end_on_mock_server(server, tmp_path):
 
 def test_quick_with_nothing_running(monkeypatch):
     monkeypatch.setattr(detect, "find_local", lambda **k: [])
+    monkeypatch.setattr(detect, "ollama_installed", lambda: False)
     res = CliRunner().invoke(app, ["quick"])
     assert res.exit_code == 1
     assert "No local LLM server found" in res.output and "ollama serve" in res.output
@@ -131,3 +132,10 @@ def test_share_command(tmp_path):
     assert (tmp_path / "r-card.png").exists()
     res = CliRunner().invoke(app, ["share", str(f), "--no-card", "--card", str(tmp_path / "x.png")])
     assert res.exit_code == 0 and not (tmp_path / "x.png").exists()
+
+
+def test_quick_says_when_ollama_is_installed_but_not_running(monkeypatch):
+    monkeypatch.setattr(detect, "find_local", lambda **k: [])
+    monkeypatch.setattr(detect, "ollama_installed", lambda: True)
+    res = CliRunner().invoke(app, ["quick"])
+    assert res.exit_code == 1 and "Ollama is installed but not running" in res.output
