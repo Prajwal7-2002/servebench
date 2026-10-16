@@ -294,7 +294,8 @@ def find_capacity_cmd(
 
 @app.command()
 def report(
-    runs: Annotated[list[Path], typer.Argument(help="One or more run.json files")],
+    runs: Annotated[list[Path], typer.Argument(
+        help="One or more run.json files", exists=True, dir_okay=False)],
     out: Annotated[Path | None, typer.Option(help="Write an .html or .md report")] = None,
     slo_ttft_ms: Annotated[float | None, typer.Option(
         help="Recompute goodput with this TTFT SLO")] = None,

@@ -128,3 +128,18 @@ def test_cli_warns_about_localhost(fake):
                               "1", "--num-requests", "1", "--output-len", "2", "--warmup", "0"])
     assert res.exit_code == 0, res.output
     assert "Use 127.0.0.1" in res.output
+
+
+def test_tick_labels_skip_crowded_values_on_log_axis():
+    from servebench.report import _tick_labels
+
+    assert _tick_labels([1, 2, 4, 8, 9, 10, 12, 16], None, True) == \
+        ["1", "2", "4", "8", "", "10", "12", "16"]
+    assert _tick_labels([1, 2, 3], None, False) == ["1", "2", "3"]
+    assert _tick_labels([1, 2, 4], 4, True) == ["1", "2", "inf"]
+
+
+def test_report_missing_file_is_a_clean_error(tmp_path):
+    res = runner.invoke(app, ["report", str(tmp_path / "nope.json")])
+    assert res.exit_code != 0
+    assert "does not exist" in res.output

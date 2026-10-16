@@ -192,6 +192,22 @@ def _x_values(lv: LevelResult, inf_x: float) -> float:
     return inf_x if math.isinf(lv.value) else lv.value
 
 
+def _tick_labels(xs: list[float], inf_x: float | None, log_x: bool) -> list[str]:
+    """Label every tick, except on a log axis where a value sits too close to the previous
+    labelled one (find-capacity's 8, 9, 10 would overlap); its tick mark stays."""
+    out: list[str] = []
+    last: float | None = None
+    for x in xs:
+        if x == inf_x:
+            out.append("inf")
+        elif log_x and last is not None and x / last < 1.2:
+            out.append("")
+        else:
+            out.append(f"{x:g}")
+            last = x
+    return out
+
+
 PANELS = [
     ("TTFT p50 (ms)", lambda s: s.ttft.p50, 1000),
     ("TPOT p50 (ms)", lambda s: s.tpot.p50, 1000),
@@ -229,10 +245,9 @@ def sweep_figure(runs: list[RunResult], theme_name: str = "light"):
                             color=theme["ink2"])
         if log_x:
             ax.set_xscale("log", base=2)
+        has_inf = any(math.isinf(lv.value) for r in runs for lv in r.levels)
         ax.set_xticks(xs_all)
-        ax.set_xticklabels(["inf" if x == inf_x and any(math.isinf(lv.value) for r in runs
-                                                         for lv in r.levels) else f"{x:g}"
-                            for x in xs_all])
+        ax.set_xticklabels(_tick_labels(xs_all, inf_x if has_inf else None, log_x))
         ax.set_ylim(bottom=0)
         ax.set_xlabel("concurrent requests" if mode == "concurrency" else "request rate (req/s)",
                       color=theme["ink2"], fontsize=9)
