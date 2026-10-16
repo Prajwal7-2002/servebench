@@ -1,4 +1,4 @@
-"""find-capacity: the search logic on its own, then end to end against the fake server."""
+"""find-capacity: the search logic on its own, then end to end against the mock server."""
 
 import re
 
@@ -64,17 +64,17 @@ async def test_find_capacity_needs_an_slo():
         await find_capacity(None, "concurrency")
 
 
-# Fake server: TTFT = 80 ms * in_flight (slowdown 1.0), so with a 360 ms TTFT SLO,
+# Mock server: TTFT = 80 ms * in_flight (slowdown 1.0), so with a 360 ms TTFT SLO,
 # 4 in flight gives 320 ms (pass) and 5 gives 400 ms (fail): 40 ms margin either way for
 # connection setup and timer jitter (25 ms was not enough on Windows CI runners).
 # Capacity should be exactly 4.
-def _slow_server(fake):
-    fake.cfg.ttft, fake.cfg.itl, fake.cfg.slowdown = 0.08, 0.005, 1.0
+def _slow_server(server):
+    server.cfg.ttft, server.cfg.itl, server.cfg.slowdown = 0.08, 0.005, 1.0
 
 
-async def test_find_capacity_on_fake_server(fake):
-    _slow_server(fake)
-    spec = RequestSpec(url=fake.url, model="fake-model", output_len=2)
+async def test_find_capacity_on_mock_server(server):
+    _slow_server(server)
+    spec = RequestSpec(url=server.url, model="mock-model", output_len=2)
     measure = level_runner(spec, lambda n, s: synthetic(n, 8, s), "concurrency", None,
                            slo_ttft_ms=360, slo_tpot_ms=None)
     levels, cap = await find_capacity(measure, "concurrency", max_value=16, slo_ttft_ms=360)
@@ -85,11 +85,11 @@ async def test_find_capacity_on_fake_server(fake):
     assert levels[3].summary.slo_attainment < 0.9
 
 
-def test_cli_find_capacity(fake, tmp_path):
-    _slow_server(fake)
+def test_cli_find_capacity(server, tmp_path):
+    _slow_server(server)
     out = tmp_path / "cap.json"
     res = CliRunner().invoke(app, [
-        "find-capacity", "--url", fake.url, "--model", "fake-model", "--max", "16",
+        "find-capacity", "--url", server.url, "--model", "mock-model", "--max", "16",
         "--slo-ttft-ms", "360", "--slo-tpot-ms", "1000", "--output-len", "2",
         "--input-len", "8", "--warmup", "1", "--out", str(out),
     ])

@@ -14,7 +14,7 @@ from servebench.results import Environment, LevelResult, RequestResult, RunConfi
 runner = CliRunner()
 
 
-def fake_run(label, mode="concurrency", levels=(1, 2, 4), slow=1.0) -> RunResult:
+def sample_run(label, mode="concurrency", levels=(1, 2, 4), slow=1.0) -> RunResult:
     lvs = []
     for v in levels:
         reqs = []
@@ -35,7 +35,7 @@ def fake_run(label, mode="concurrency", levels=(1, 2, 4), slow=1.0) -> RunResult
 
 
 def test_run_json_round_trip_with_inf(tmp_path):
-    run = fake_run("a", mode="rate", levels=(1, math.inf))
+    run = sample_run("a", mode="rate", levels=(1, math.inf))
     path = tmp_path / "a.json"
     save_run(run, path)
     json.loads(path.read_text())  # strict JSON, no bare Infinity
@@ -46,7 +46,7 @@ def test_run_json_round_trip_with_inf(tmp_path):
 
 
 def test_markdown_and_html_reports(tmp_path):
-    runs = [fake_run("ollama"), fake_run("llamacpp", slow=2)]
+    runs = [sample_run("ollama"), sample_run("llamacpp", slow=2)]
     md = markdown(runs, tmp_path / "img", "img/")
     assert (tmp_path / "img" / "sweep.png").stat().st_size > 10_000
     assert "## ollama" in md and "## llamacpp" in md and "| c=4 |" in md
@@ -57,7 +57,7 @@ def test_markdown_and_html_reports(tmp_path):
 
 def test_report_refuses_mixed_modes(tmp_path):
     with pytest.raises(ValueError, match="concurrency"):
-        write_report([fake_run("a"), fake_run("b", mode="rate")], tmp_path / "r.html")
+        write_report([sample_run("a"), sample_run("b", mode="rate")], tmp_path / "r.html")
 
 
 def test_parse_levels():
@@ -65,20 +65,20 @@ def test_parse_levels():
     assert parse_levels("0.5,inf") == [0.5, math.inf]
 
 
-def test_cli_run_and_report_against_fake_server(fake, tmp_path):
-    fake.cfg.ttft, fake.cfg.itl = 0.03, 0.005
-    out = tmp_path / "fake.json"
+def test_cli_run_and_report_against_mock_server(server, tmp_path):
+    server.cfg.ttft, server.cfg.itl = 0.03, 0.005
+    out = tmp_path / "mock.json"
     res = runner.invoke(app, [
-        "run", "--url", fake.url, "--model", "fake-model", "--concurrency", "1,2",
+        "run", "--url", server.url, "--model", "mock-model", "--concurrency", "1,2",
         "--num-requests", "4", "--input-len", "32", "--output-len", "8", "--warmup", "1",
         "--out", str(out),
     ])
     assert res.exit_code == 0, res.output
     run = load_run(out)
-    assert run.label == "fake"
+    assert run.label == "mock"
     assert [lv.value for lv in run.levels] == [1, 2]
     assert all(lv.summary.completed == 4 for lv in run.levels)
-    assert run.environment.server_models == ["fake-model"]
+    assert run.environment.server_models == ["mock-model"]
     assert run.levels[0].requests[0].prompt_tokens == 32  # synthetic prompt length
 
     html = tmp_path / "report.html"
@@ -100,7 +100,7 @@ def test_terminal_table_never_truncates_numbers(width):
     from servebench.report import print_run
 
     # big values on purpose: 5-digit latencies and throughput, like a server under overload
-    run = fake_run("a-fairly-long-run-label", levels=(1, 16, 128))
+    run = sample_run("a-fairly-long-run-label", levels=(1, 16, 128))
     run.levels[-1].summary.output_throughput = 12345.6
     console = Console(width=width, record=True)
     print_run(run, console)
@@ -110,21 +110,21 @@ def test_terminal_table_never_truncates_numbers(width):
     assert any("c=128" in ln and "12345.6" in ln and "12809" in ln for ln in lines)
 
 
-def test_cli_warns_about_unknown_model(fake, tmp_path):
-    fake.cfg.ttft, fake.cfg.itl = 0.01, 0.002
+def test_cli_warns_about_unknown_model(server, tmp_path):
+    server.cfg.ttft, server.cfg.itl = 0.01, 0.002
     res = runner.invoke(app, [
-        "run", "--url", fake.url, "--model", "not-pulled:0.5b", "--concurrency", "1",
+        "run", "--url", server.url, "--model", "not-pulled:0.5b", "--concurrency", "1",
         "--num-requests", "1", "--output-len", "2", "--warmup", "0",
     ])
     assert res.exit_code == 0, res.output
     assert "does not list model 'not-pulled:0.5b'" in res.output
-    assert "fake-model" in res.output
+    assert "mock-model" in res.output
 
 
-def test_cli_warns_about_localhost(fake):
-    fake.cfg.ttft, fake.cfg.itl = 0.01, 0.002
-    url = fake.url.replace("127.0.0.1", "localhost")
-    res = runner.invoke(app, ["run", "--url", url, "--model", "fake-model", "--concurrency",
+def test_cli_warns_about_localhost(server):
+    server.cfg.ttft, server.cfg.itl = 0.01, 0.002
+    url = server.url.replace("127.0.0.1", "localhost")
+    res = runner.invoke(app, ["run", "--url", url, "--model", "mock-model", "--concurrency",
                               "1", "--num-requests", "1", "--output-len", "2", "--warmup", "0"])
     assert res.exit_code == 0, res.output
     assert "Use 127.0.0.1" in res.output

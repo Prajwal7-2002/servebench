@@ -1435,12 +1435,12 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-fake = [
-    { name = "fastapi" },
-    { name = "uvicorn" },
-]
 hf = [
     { name = "transformers" },
+]
+mock = [
+    { name = "fastapi" },
+    { name = "uvicorn" },
 ]
 
 [package.dev-dependencies]
@@ -1454,7 +1454,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "fastapi", marker = "extra == 'fake'", specifier = ">=0.110" },
+    { name = "fastapi", marker = "extra == 'mock'", specifier = ">=0.110" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "matplotlib", specifier = ">=3.8" },
     { name = "numpy", specifier = ">=1.26" },
@@ -1462,9 +1462,9 @@ requires-dist = [
     { name = "rich", specifier = ">=13" },
     { name = "transformers", marker = "extra == 'hf'", specifier = ">=4.40" },
     { name = "typer", specifier = ">=0.12" },
-    { name = "uvicorn", marker = "extra == 'fake'", specifier = ">=0.29" },
+    { name = "uvicorn", marker = "extra == 'mock'", specifier = ">=0.29" },
 ]
-provides-extras = ["fake", "hf"]
+provides-extras = ["mock", "hf"]
 
 [package.metadata.requires-dev]
 dev = [

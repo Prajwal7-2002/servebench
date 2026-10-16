@@ -13,7 +13,7 @@ def test_synthetic_is_deterministic_distinct_and_sized():
     assert all(len(p.text.split()) == 64 for p in a)
 
 
-def _fake_dolly(tmp_path):
+def _dolly_file(tmp_path):
     rows = [
         {"instruction": "Say hi", "context": "", "response": "hi", "category": "open_qa"},
         {"instruction": "Summarise this", "context": "A long passage " * 50, "response": "",
@@ -26,7 +26,7 @@ def _fake_dolly(tmp_path):
 
 
 def test_dolly_joins_context_and_filters_by_length(tmp_path):
-    path = _fake_dolly(tmp_path)
+    path = _dolly_file(tmp_path)
     got = P.dolly(2, seed=0, max_words=20, path=path)
     assert {p.text for p in got} == {"Say hi", "What is 2+2?"}
     assert all(p.source == "dolly" for p in got)

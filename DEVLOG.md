@@ -54,3 +54,11 @@
   Blog angle: "more slots" buys admission, not throughput, once the GPU is busy.
 - find-capacity's 8, 9, 10, 12 levels made tick labels collide; log-axis labels now skip a
   value within 1.2x of the previous label. `report` on a missing file: clean error.
+
+## 2026-10-16: fake -> mock, README leads with real results
+
+- Renamed the test server `fake-server` -> `mock-server` (`servebench[mock]`, `mock-model`):
+  "mock" is the usual word, and "fake" next to benchmark numbers read badly. No alias kept,
+  since nothing has been released yet.
+- README now opens with real Ollama commands; find-capacity example is the real Ollama
+  4-slot run; the mock lives in a "How it's tested" section explaining why it exists.

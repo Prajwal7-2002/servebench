@@ -28,7 +28,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-fake = ["fastapi>=0.110", "uvicorn>=0.29"]
+mock = ["fastapi>=0.110", "uvicorn>=0.29"]
 hf = ["transformers>=4.40"]
 
 [dependency-groups]

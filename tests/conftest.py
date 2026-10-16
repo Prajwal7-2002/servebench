@@ -7,12 +7,12 @@ import httpx
 import pytest
 import uvicorn
 
-from servebench.fake_server import FakeConfig, create_app
+from servebench.mock_server import MockConfig, create_app
 
-DEFAULT = FakeConfig(ttft=0.1, itl=0.02)
+DEFAULT = MockConfig(ttft=0.1, itl=0.02)
 
 
-class FakeServer:
+class MockServer:
     def __init__(self):
         self.app = create_app(replace(DEFAULT))
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -26,7 +26,7 @@ class FakeServer:
         deadline = time.time() + 10
         while not self.server.started:
             if time.time() > deadline:
-                raise RuntimeError("fake server did not start")
+                raise RuntimeError("mock server did not start")
             time.sleep(0.02)
         self._warm_up()
 
@@ -34,7 +34,7 @@ class FakeServer:
         # The first request through the app pays one-off costs (lazy imports, FastAPI
         # building its handlers). On a cold CI runner that added ~50 ms to the first test's
         # TTFT. Pay it here, like servebench's own warm-up requests do for real servers.
-        body = {"model": "fake-model", "max_tokens": 2, "stream": True,
+        body = {"model": "mock-model", "max_tokens": 2, "stream": True,
                 "stream_options": {"include_usage": True}}
         for path, extra in (("chat/completions", {"messages": [{"role": "user",
                                                                 "content": "warm up"}]}),
@@ -44,7 +44,7 @@ class FakeServer:
         self.app.state.stats.reset()
 
     @property
-    def cfg(self) -> FakeConfig:
+    def cfg(self) -> MockConfig:
         return self.app.state.cfg
 
     @property
@@ -62,14 +62,14 @@ class FakeServer:
 
 @pytest.fixture(scope="session")
 def _server():
-    s = FakeServer()
+    s = MockServer()
     yield s
     s.stop()
 
 
 @pytest.fixture
-def fake(_server):
-    """The shared fake server, reset to default timings for each test."""
+def server(_server):
+    """The shared mock server, reset to default timings for each test."""
     _server.reset()
     yield _server
     _server.reset()

@@ -1,4 +1,4 @@
-"""Command line: `servebench run`, `find-capacity`, `report`, `fake-server`."""
+"""Command line: `servebench run`, `find-capacity`, `report`, `mock-server`."""
 
 from __future__ import annotations
 
@@ -318,8 +318,8 @@ def report(
         console.print(f"Wrote {out}")
 
 
-@app.command("fake-server")
-def fake_server(
+@app.command("mock-server")
+def mock_server(
     port: int = 8000,
     host: str = "127.0.0.1",
     ttft_ms: float = 100.0,
@@ -328,15 +328,15 @@ def fake_server(
     slowdown: Annotated[float, typer.Option(
         help="Extra latency per extra in-flight request, as a fraction (0.1 = +10%)")] = 0.0,
 ) -> None:
-    """Run a fake OpenAI-compatible server with known timings (needs the fake extra)."""
+    """Run a mock OpenAI-compatible server with known timings (needs the mock extra)."""
     try:
-        from .fake_server import FakeConfig, serve
+        from .mock_server import MockConfig, serve
     except ImportError as e:
-        console.print(r"[red]fake-server needs the servebench\[fake] extra[/red]")
+        console.print(r"[red]mock-server needs the servebench\[mock] extra[/red]")
         raise typer.Exit(1) from e
-    console.print(f"Fake server on http://{host}:{port}/v1 (model 'fake-model'), "
+    console.print(f"Mock server on http://{host}:{port}/v1 (model 'mock-model'), "
                   f"TTFT {ttft_ms} ms, ITL {itl_ms} ms. Ctrl+C to stop.")
-    serve(FakeConfig(ttft=ttft_ms / 1000, itl=itl_ms / 1000, tokens_per_chunk=tokens_per_chunk,
+    serve(MockConfig(ttft=ttft_ms / 1000, itl=itl_ms / 1000, tokens_per_chunk=tokens_per_chunk,
                      slowdown=slowdown), host=host, port=port)
 
 

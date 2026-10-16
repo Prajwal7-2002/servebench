@@ -1,4 +1,4 @@
-"""M1: per-request timings match the fake server's set delays."""
+"""M1: per-request timings match the mock server's set delays."""
 
 import httpx
 import pytest
@@ -12,16 +12,16 @@ TOL = 0.03
 PROMPT = Prompt("hello there general kenobi")
 
 
-async def _one(fake, **kw) -> object:
-    spec = RequestSpec(url=fake.url, model="fake-model", **kw)
+async def _one(server, **kw) -> object:
+    spec = RequestSpec(url=server.url, model="mock-model", **kw)
     async with httpx.AsyncClient(timeout=30) as client:
         return await send_request(client, spec, PROMPT)
 
 
 @pytest.mark.parametrize("endpoint", ["chat", "completions"])
-async def test_ttft_and_tpot_match_server(fake, endpoint):
-    fake.cfg.ttft, fake.cfg.itl = 0.2, 0.03
-    r = await _one(fake, endpoint=endpoint, output_len=20)
+async def test_ttft_and_tpot_match_server(server, endpoint):
+    server.cfg.ttft, server.cfg.itl = 0.2, 0.03
+    r = await _one(server, endpoint=endpoint, output_len=20)
     assert r.ok, r.error
     assert r.ttft == pytest.approx(0.2, abs=TOL)
     assert r.tpot == pytest.approx(0.03, abs=0.005)
@@ -33,17 +33,17 @@ async def test_ttft_and_tpot_match_server(fake, endpoint):
     assert sum(r.itls) / len(r.itls) == pytest.approx(0.03, abs=0.005)
 
 
-async def test_role_and_empty_chunks_do_not_count_for_ttft(fake):
-    # the fake chat stream sends a role-only and an empty chunk right away; if they counted,
+async def test_role_and_empty_chunks_do_not_count_for_ttft(server):
+    # the server chat stream sends a role-only and an empty chunk right away; if they counted,
     # TTFT would be ~0 instead of the 0.3 s before the first real token
-    fake.cfg.ttft = 0.3
-    r = await _one(fake, output_len=3)
+    server.cfg.ttft = 0.3
+    r = await _one(server, output_len=3)
     assert r.ttft == pytest.approx(0.3, abs=TOL)
 
 
-async def test_several_tokens_per_chunk(fake):
-    fake.cfg.ttft, fake.cfg.itl, fake.cfg.tokens_per_chunk = 0.1, 0.02, 4
-    r = await _one(fake, output_len=20)
+async def test_several_tokens_per_chunk(server):
+    server.cfg.ttft, server.cfg.itl, server.cfg.tokens_per_chunk = 0.1, 0.02, 4
+    r = await _one(server, output_len=20)
     assert r.ok
     assert r.num_chunks == 5
     assert r.output_tokens == 20  # from usage, not the chunk count
@@ -52,16 +52,16 @@ async def test_several_tokens_per_chunk(fake):
     assert sum(r.itls) / len(r.itls) == pytest.approx(0.08, abs=0.006)
 
 
-async def test_falls_back_to_chunk_count_without_usage(fake):
-    fake.cfg.send_usage = False
-    r = await _one(fake, output_len=7)
+async def test_falls_back_to_chunk_count_without_usage(server):
+    server.cfg.send_usage = False
+    r = await _one(server, output_len=7)
     assert r.token_source == "chunks"
     assert r.output_tokens == 7
 
 
-async def test_falls_back_to_counter_without_usage(fake):
-    fake.cfg.send_usage, fake.cfg.tokens_per_chunk = False, 3
-    spec = RequestSpec(url=fake.url, model="fake-model", output_len=9)
+async def test_falls_back_to_counter_without_usage(server):
+    server.cfg.send_usage, server.cfg.tokens_per_chunk = False, 3
+    spec = RequestSpec(url=server.url, model="mock-model", output_len=9)
     async with httpx.AsyncClient(timeout=30) as client:
         r = await send_request(client, spec, PROMPT, counter=lambda t: len(t.split()))
     assert r.token_source == "tokenizer"
@@ -69,8 +69,8 @@ async def test_falls_back_to_counter_without_usage(fake):
     assert r.num_chunks == 3
 
 
-async def test_http_error_is_recorded_not_raised(fake):
-    spec = RequestSpec(url=fake.url, model="fake-model")
+async def test_http_error_is_recorded_not_raised(server):
+    spec = RequestSpec(url=server.url, model="mock-model")
     async with httpx.AsyncClient(timeout=30) as client:
         r = await send_request(client, spec, Prompt("please FAIL now"))
     assert not r.ok
@@ -86,9 +86,9 @@ async def test_connection_error_is_recorded():
     assert "Connect" in r.error
 
 
-async def test_timeout_is_recorded(fake):
-    fake.cfg.ttft = 2.0
-    spec = RequestSpec(url=fake.url, model="fake-model", output_len=2)
+async def test_timeout_is_recorded(server):
+    server.cfg.ttft = 2.0
+    spec = RequestSpec(url=server.url, model="mock-model", output_len=2)
     async with httpx.AsyncClient(timeout=0.3) as client:
         r = await send_request(client, spec, PROMPT)
     assert not r.ok
@@ -108,23 +108,23 @@ def test_payload_shapes():
     assert body["prompt"] == PROMPT.text and "ignore_eos" not in body
 
 
-async def test_itl_median_matches_short_gaps(fake):
+async def test_itl_median_matches_short_gaps(server):
     # 15 ms is just under the ~15.6 ms Windows timer tick: a coarse sleep in the server
     # would send tokens in pairs (gaps of ~31 ms and ~0 ms) and the median would collapse
-    fake.cfg.ttft, fake.cfg.itl = 0.05, 0.015
-    r = await _one(fake, output_len=30)
+    server.cfg.ttft, server.cfg.itl = 0.05, 0.015
+    r = await _one(server, output_len=30)
     itls = sorted(r.itls)
     assert itls[len(itls) // 2] == pytest.approx(0.015, abs=0.003)
 
 
-async def test_connections_are_reused(fake):
+async def test_connections_are_reused(server):
     # breaking out of the stream at [DONE] used to close the connection, so every request
     # paid a new TCP connect (about 0.3 s each for `localhost` on Windows)
-    fake.cfg.ttft, fake.cfg.itl = 0.01, 0.002
-    spec = RequestSpec(url=fake.url, model="fake-model", output_len=3)
+    server.cfg.ttft, server.cfg.itl = 0.01, 0.002
+    spec = RequestSpec(url=server.url, model="mock-model", output_len=3)
     async with httpx.AsyncClient(timeout=30) as client:
         for i in range(4):
             r = await send_request(client, spec, PROMPT, index=i)
             assert r.ok, r.error
-    assert fake.stats.total == 4
-    assert len(fake.stats.peers) == 1
+    assert server.stats.total == 4
+    assert len(server.stats.peers) == 1

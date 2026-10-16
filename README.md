@@ -16,20 +16,23 @@ No GPU or engine install is needed on the client: it is one async Python process
 Uses [uv](https://docs.astral.sh/uv/). PyPI release coming; for now, from a clone:
 
 ```bash
-uv tool install --from . "servebench[fake]"   # puts `servebench` on your PATH
+uv tool install --from . servebench      # puts `servebench` on your PATH
 
-# try it with no model at all: a fake server with known timings
-servebench fake-server --ttft-ms 80 --itl-ms 15 --slowdown 0.15 &
-servebench run --url http://127.0.0.1:8000/v1 --model fake-model \
-    --concurrency 1,2,4,8,16 --output-len 64 --out runs/fake.json
-
-# a real server, e.g. Ollama
-servebench run --url http://localhost:11434/v1 --model qwen2.5:0.5b \
+# sweep a running server, e.g. Ollama (on Windows use 127.0.0.1, not localhost)
+servebench run --url http://127.0.0.1:11434/v1 --model qwen2.5:0.5b \
     --concurrency 1,2,4,8 --input-len 256 --output-len 128 --out runs/ollama.json
 
-# compare runs
+# how many concurrent users fit your latency targets?
+servebench find-capacity --url http://127.0.0.1:11434/v1 --model qwen2.5:0.5b \
+    --out runs/ollama-cap.json
+
+# compare runs side by side, with charts
 servebench report runs/ollama.json runs/llamacpp.json --out report.html
 ```
+
+No model at hand? `uv tool install --from . "servebench[mock]"` adds `servebench mock-server`,
+a stand-in server with set timings, so you can try every command without a GPU
+([see How it's tested](#how-its-tested)).
 
 ## Results
 
@@ -58,13 +61,6 @@ SLO TTFT < 500 ms and TPOT < 50 ms for 90% of requests. Only `OLLAMA_NUM_PARALLE
 Full report with every level: [results/ollama-parallel.md](results/ollama-parallel.md).
 Raw data: `results/ollama-np{1,4,8}.json` (every request's timings). Next: llama.cpp server
 on the same GPU, and vLLM on a free Kaggle T4.
-
-### Checked against a fake server
-
-The metrics are tested against `servebench fake-server`, which streams with known delays. A
-fake server set to TTFT 80 ms, 15 ms per token and 15% slowdown per extra request in flight
-should show TPOT 15 × (1 + 0.15 × 15) ≈ 49 ms at 16 concurrent requests, which is what
-servebench measures ([examples/report.md](examples/report.md)).
 
 ## Metrics
 
@@ -100,23 +96,23 @@ rate). Two warm-up requests run first and are not measured. Everything is seeded
 `find-capacity` answers "how much load can this server take within my latency targets?"
 with one number:
 
-```bash
-servebench find-capacity --url http://127.0.0.1:8000/v1 --model fake-model \
-    --output-len 64 --slo-ttft-ms 300 --slo-tpot-ms 40 --out runs/fake-cap.json
-```
-```
-         c=8  32 ok, 0 failed, 242.8 tok/s, TTFT p50 167 ms, 100% in SLO  -> pass
-        c=16  64 ok, 0 failed, 306.4 tok/s, TTFT p50 263 ms, 19% in SLO  -> FAIL
-        c=12  48 ok, 0 failed, 281.7 tok/s, TTFT p50 216 ms, 100% in SLO  -> pass
-        c=14  56 ok, 0 failed, 295.2 tok/s, TTFT p50 239 ms, 21% in SLO  -> FAIL
-        c=13  52 ok, 0 failed, 288.9 tok/s, TTFT p50 227 ms, 23% in SLO  -> FAIL
-...
-Capacity: 12 concurrent requests. At 12, 100% met the SLO; at 13, only 23%.
-SLO: TTFT < 300 ms and TPOT < 40 ms for 90% of requests.
-```
+Real run: Ollama with `OLLAMA_NUM_PARALLEL=4` on the RTX 3050 from the results above.
 
-(The fake server's TPOT is 15 ms × (1 + 0.15 × (N − 1)), which crosses 40 ms just above
-N = 12, so 12 is the right answer.)
+```bash
+servebench find-capacity --url http://127.0.0.1:11434/v1 --model qwen2.5:0.5b \
+    --max 64 --num-requests 64 --out results/ollama-np4.json
+```
+```
+         c=1  64 ok, 0 failed, 188.5 tok/s, TTFT p50 45 ms, 100% in SLO  -> pass
+         c=2  64 ok, 0 failed, 274.0 tok/s, TTFT p50 71 ms, 100% in SLO  -> pass
+         c=4  64 ok, 0 failed, 384.6 tok/s, TTFT p50 101 ms, 100% in SLO  -> pass
+         c=8  64 ok, 0 failed, 375.7 tok/s, TTFT p50 1424 ms, 6% in SLO  -> FAIL
+         c=6  64 ok, 0 failed, 405.2 tok/s, TTFT p50 566 ms, 47% in SLO  -> FAIL
+         c=5  64 ok, 0 failed, 369.8 tok/s, TTFT p50 367 ms, 72% in SLO  -> FAIL
+...
+Capacity: 4 concurrent requests. At 4, 100% met the SLO; at 5, only 72%.
+SLO: TTFT < 500 ms and TPOT < 50 ms for 90% of requests.
+```
 
 - A level **passes** when no request failed and at least `--target` (default 90%) of the
   requests met `--slo-ttft-ms` and `--slo-tpot-ms`.
@@ -163,8 +159,25 @@ prompts.py ──► load.py ─────────────► client.p
 - The client checks itself: a background task measures how long a ready callback waits for
   the event loop. If the p99 is above 10 ms, the report warns that the client, not the server,
   may be the bottleneck.
-- `servebench fake-server` is a FastAPI server that streams with known TTFT, ITL, tokens per
-  chunk and slowdown under load. The tests check every metric against it.
+## How it's tested
+
+You can't check a benchmark's numbers against a real model, because nobody knows the true
+answer in advance. So the tests use `servebench mock-server`: a FastAPI server that speaks the
+same OpenAI streaming API but, instead of running a model, sends placeholder tokens with
+timings we set exactly (TTFT, time per token, tokens per chunk, slowdown under load). The
+tests then check servebench measures what was set:
+
+- TTFT and TPOT within a few ms of the set delays, on Linux and Windows (CI on both)
+- role-only and empty chunks don't count as the first token; several tokens per chunk
+- N concurrent requests really means N in flight (the mock counts them); Poisson arrival rates
+- connections are reused (the mock counts TCP connections: 4 requests, 1 connection)
+- `find-capacity` finds the known limit: with TTFT = 80 ms × requests in flight and a 360 ms
+  target, capacity must be exactly 4
+
+Example: a mock set to TTFT 80 ms, 15 ms per token and 15% slowdown per extra request in
+flight should show TPOT 15 × (1 + 0.15 × 15) ≈ 49 ms at 16 concurrent requests, and
+servebench measures 49 ms ([examples/report.md](examples/report.md)). The mock is a test
+tool only; every number under [Results](#results) comes from a real server.
 
 ## Limitations
 

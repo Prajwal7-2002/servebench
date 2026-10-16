@@ -1,8 +1,8 @@
-"""A fake OpenAI-compatible streaming server with known timings.
+"""A mock OpenAI-compatible streaming server with known timings.
 
 Used by the tests to check every metric against delays we set, and handy for trying
-servebench without a model: `servebench fake-server --ttft-ms 200 --itl-ms 30`.
-Needs the `servebench[fake]` extra.
+servebench without a model: `servebench mock-server --ttft-ms 200 --itl-ms 30`.
+Needs the `servebench[mock]` extra.
 
 Timing model for each request, with `active` = requests in flight when it starts:
     TTFT = ttft * (1 + slowdown * (active - 1))
@@ -34,17 +34,17 @@ async def sleep_until(due: float) -> None:
 
 
 @dataclass
-class FakeConfig:
+class MockConfig:
     ttft: float = 0.1  # seconds
     itl: float = 0.02  # seconds per token
     tokens_per_chunk: int = 1
     slowdown: float = 0.0
     send_usage: bool = True
-    model: str = "fake-model"
+    model: str = "mock-model"
 
 
 @dataclass
-class FakeStats:
+class MockStats:
     active: int = 0
     peak: int = 0
     total: int = 0
@@ -55,10 +55,10 @@ class FakeStats:
         self.peers.clear()
 
 
-def create_app(cfg: FakeConfig | None = None) -> FastAPI:
-    app = FastAPI(title="servebench fake server")
-    app.state.cfg = cfg or FakeConfig()
-    app.state.stats = FakeStats()
+def create_app(cfg: MockConfig | None = None) -> FastAPI:
+    app = FastAPI(title="servebench mock server")
+    app.state.cfg = cfg or MockConfig()
+    app.state.stats = MockStats()
 
     @app.get("/v1/models")
     async def models():
@@ -71,14 +71,14 @@ def create_app(cfg: FakeConfig | None = None) -> FastAPI:
                 "connections": len(s.peers)}
 
     async def handle(request: Request, chat: bool):
-        cfg: FakeConfig = app.state.cfg
+        cfg: MockConfig = app.state.cfg
         body = await request.json()
         text = (body["messages"][-1]["content"] if chat else body.get("prompt", "")) or ""
         if "FAIL" in text:  # lets tests produce server errors on demand
             return JSONResponse({"error": {"message": "forced failure"}}, status_code=500)
         n_out = int(body.get("max_tokens") or 16)
         want_usage = bool((body.get("stream_options") or {}).get("include_usage"))
-        stats: FakeStats = app.state.stats
+        stats: MockStats = app.state.stats
         stats.active += 1
         stats.total += 1
         if request.client:
@@ -94,7 +94,7 @@ def create_app(cfg: FakeConfig | None = None) -> FastAPI:
                 choice = {"index": 0, "delta": delta, "finish_reason": finish}
             else:
                 choice = {"index": 0, "text": content or "", "finish_reason": finish}
-            data = {"id": "fake", "object": obj, "created": created, "model": cfg.model,
+            data = {"id": "mock", "object": obj, "created": created, "model": cfg.model,
                     "choices": [choice]}
             return f"data: {json.dumps(data)}\n\n"
 
@@ -117,7 +117,7 @@ def create_app(cfg: FakeConfig | None = None) -> FastAPI:
                 if want_usage and cfg.send_usage:
                     usage = {"prompt_tokens": len(text.split()), "completion_tokens": n_out,
                              "total_tokens": len(text.split()) + n_out}
-                    data = {"id": "fake", "object": obj, "created": created, "model": cfg.model,
+                    data = {"id": "mock", "object": obj, "created": created, "model": cfg.model,
                             "choices": [], "usage": usage}
                     yield f"data: {json.dumps(data)}\n\n"
                 yield "data: [DONE]\n\n"
@@ -137,7 +137,7 @@ def create_app(cfg: FakeConfig | None = None) -> FastAPI:
     return app
 
 
-def serve(cfg: FakeConfig, host: str = "127.0.0.1", port: int = 8000) -> None:
+def serve(cfg: MockConfig, host: str = "127.0.0.1", port: int = 8000) -> None:
     import uvicorn
 
     uvicorn.run(create_app(cfg), host=host, port=port, log_level="warning")
