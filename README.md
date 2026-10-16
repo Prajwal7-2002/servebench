@@ -153,7 +153,11 @@ prompts.py ──► load.py ─────────────► client.p
                goodput                    PNG charts, MD / HTML
 ```
 
-- One `asyncio` process with `httpx`. Timings use `time.perf_counter()`.
+- One `asyncio` process with `aiohttp` (the HTTP client vLLM's and SGLang's own serving
+  benchmarks use). Timings use `time.perf_counter()`. servebench started on `httpx`; profiling
+  showed its connection pool re-checks every connection on every request, so at 128
+  concurrent requests the *client* capped out at ~45 req/s and inflated TTFT from 100 ms to
+  1.6 s. With aiohttp the same test reaches ~400 req/s with TTFT 135 ms.
 - Every request's chunk arrival times are saved in `run.json`, so reports can be recomputed
   (for example with different SLOs) without rerunning anything.
 - The client checks itself: a background task measures how long a ready callback waits for
@@ -181,8 +185,11 @@ tool only; every number under [Results](#results) comes from a real server.
 
 ## Limitations
 
-- One client process. Fine for the hundreds of concurrent requests a single GPU serves; not
-  for thousands. The lag check tells you when it is struggling.
+- One client process. Measured on a laptop (Ryzen 5 6600H, Windows) against the mock
+  server: accurate to ~128 concurrent requests / ~400 req/s / ~12k streamed tokens/s (client
+  loop lag p99 under 10 ms); at 256 concurrent it starts to work hard (lag ~20 ms). That
+  covers what a single GPU serves; it is not a multi-machine load generator. The lag check
+  warns when the client is struggling.
 - The first requests of each level include opening TCP connections, as a real client would.
 - TPOT and ITL are only as good as the token counts: without `usage` or `--tokenizer`, a
   server that sends several tokens per chunk will look slower per token than it is.

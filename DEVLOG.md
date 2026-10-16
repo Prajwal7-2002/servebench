@@ -62,3 +62,19 @@
   since nothing has been released yet.
 - README now opens with real Ollama commands; find-capacity example is the real Ollama
   4-slot run; the mock lives in a "How it's tested" section explaining why it exists.
+
+## 2026-10-16: performance: faster startup, aiohttp client
+
+- Startup: importing the CLI took 1.13 s (matplotlib 0.43 s on every command, numpy 0.07 s).
+  matplotlib now loads only when a chart is drawn; percentiles are plain Python (tested
+  equal to numpy's linear method). Import 1.13 s -> 0.40 s; `servebench --help` ~1.2 -> ~0.7 s
+  on Windows (Python itself is ~0.3 s). A test asserts the CLI doesn't import them.
+- Client scaling: against the mock (TTFT 100 ms, 5 ms/token) throughput capped at ~60 req/s
+  and client loop lag hit 927 ms at c=256: the client was the bottleneck and TTFT read 1 s
+  instead of 100 ms. Profile: httpcore's pool calls is_idle()/has_expired() (a select() each)
+  on every connection for every request: 4.5M calls, 69k selects for 256 requests. Also a
+  failed `import sniffio` on every pool event (not the main cost). Switched to aiohttp:
+  c=64 64 -> 224 req/s, c=128 44 -> 396, c=256 49 -> 571; lag p99 at c=256 927 -> 20 ms.
+  Test suite 69 s -> 41 s. Verified against Ollama (both endpoints).
+- httpx dropped from the package (stdlib urllib for /models and the dolly download); kept
+  only as a test tool. numpy no longer a direct dependency.

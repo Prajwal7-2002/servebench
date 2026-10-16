@@ -42,7 +42,7 @@ def test_dolly_download_is_cached(tmp_path, monkeypatch):
     def no_network(*a, **k):
         raise AssertionError("should not download when cached")
 
-    monkeypatch.setattr(P.httpx, "stream", no_network)
+    monkeypatch.setattr(P.urllib.request, "urlopen", no_network)
     assert P.download_dolly() == cached
 
 

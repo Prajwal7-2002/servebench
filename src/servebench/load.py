@@ -9,11 +9,10 @@ import random
 import time
 from collections.abc import Awaitable, Callable, Iterable, Iterator
 
-import httpx
-import numpy as np
+import aiohttp
 
 from .client import RequestSpec, send_request
-from .metrics import summarize
+from .metrics import percentile, summarize
 from .prompts import Prompt
 from .results import LevelResult, RequestResult
 from .tokens import Counter
@@ -51,7 +50,7 @@ class LagMonitor:
                 await self._task
             except asyncio.CancelledError:
                 pass
-        return float(np.percentile(self.lags, 99) * 1000) if self.lags else None
+        return percentile(sorted(self.lags), 99) * 1000 if self.lags else None
 
 
 def poisson_delays(n: int, rate: float, seed: int = 0) -> list[float]:
@@ -62,15 +61,19 @@ def poisson_delays(n: int, rate: float, seed: int = 0) -> list[float]:
     return [rng.expovariate(rate) for _ in range(n)]
 
 
-def make_client(max_connections: int | None, timeout: float) -> httpx.AsyncClient:
-    limits = httpx.Limits(max_connections=max_connections, max_keepalive_connections=None)
-    return httpx.AsyncClient(
-        limits=limits, timeout=httpx.Timeout(timeout, connect=min(timeout, 30.0))
+def make_session(max_connections: int | None, timeout: float) -> aiohttp.ClientSession:
+    """One session per level. `timeout` is per read (no gap between chunks may exceed it),
+    like a stalled stream; there is no total limit, since long answers are legitimate."""
+    connector = aiohttp.TCPConnector(limit=max_connections or 0, limit_per_host=0)
+    return aiohttp.ClientSession(
+        connector=connector,
+        timeout=aiohttp.ClientTimeout(total=None, sock_connect=min(timeout, 30.0),
+                                      sock_read=timeout),
     )
 
 
 async def run_concurrency(
-    client: httpx.AsyncClient,
+    client: aiohttp.ClientSession,
     spec: RequestSpec,
     prompts: Iterable[Prompt],
     concurrency: int,
@@ -97,7 +100,7 @@ async def run_concurrency(
 
 
 async def run_rate(
-    client: httpx.AsyncClient,
+    client: aiohttp.ClientSession,
     spec: RequestSpec,
     prompts: Iterable[Prompt],
     rate: float,
@@ -154,7 +157,7 @@ async def run_level(
         conns = int(value)
     else:
         conns = max_concurrency  # None = unlimited
-    async with make_client(conns, timeout) as client:
+    async with make_session(conns, timeout) as client:
         lag = LagMonitor()
         lag.start()
         if mode == "concurrency":
@@ -176,7 +179,7 @@ async def run_level(
 
 async def warmup(spec: RequestSpec, prompts: list[Prompt], timeout: float) -> list[RequestResult]:
     """Send a few requests one by one before measuring (loads the model, fills caches)."""
-    async with make_client(1, timeout) as client:
+    async with make_session(1, timeout) as client:
         return [await send_request(client, spec, p, index=i) for i, p in enumerate(prompts)]
 
 
@@ -221,8 +224,8 @@ async def check_warmup(
     bad = [r for r in wr if not r.ok]
     if len(bad) == len(wr):
         err = bad[0].error or ""
-        # refused, or (often on Windows) no answer before the connect timeout
-        if err.startswith("ConnectError") or "ConnectTimeout" in err:
+        # the client reports refused and timed-out connects both as "connect error"
+        if err.startswith("connect error"):
             raise RuntimeError(f"could not connect to {spec.url}. Is the server running? "
                                f"({err})")
         raise RuntimeError(f"all warm-up requests failed, first error: {err}")

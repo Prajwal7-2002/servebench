@@ -1,12 +1,19 @@
-"""Async streaming client: sends one request and records when each content chunk arrives."""
+"""Async streaming client: sends one request and records when each content chunk arrives.
+
+Uses aiohttp (as vLLM's and SGLang's serving benchmarks do). httpx was replaced after
+profiling: its connection pool re-checks every connection, with a select() call each, on
+every request, so client CPU grew with the square of concurrency and the client, not the
+server, became the bottleneck at ~60 req/s. aiohttp has a C HTTP parser and an O(1) pool.
+"""
 
 from __future__ import annotations
 
 import json
 import time
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 
-import httpx
+import aiohttp
 
 from .prompts import Prompt
 from .results import RequestResult
@@ -87,8 +94,21 @@ def _parse_stream_end(*, done: bool, finish_reason: str | None) -> str | None:
     return "incomplete stream: ended without [DONE] or a finish_reason"
 
 
+async def _lines(resp: aiohttp.ClientResponse) -> AsyncIterator[str]:
+    """Lines of the body as they arrive. Own splitting instead of aiohttp's readline, which
+    has a per-line size limit: one big SSE chunk must not fail a request."""
+    buf = b""
+    async for data in resp.content.iter_any():
+        buf += data
+        while (i := buf.find(b"\n")) >= 0:
+            line, buf = buf[:i], buf[i + 1:]
+            yield line.decode("utf-8", errors="replace").rstrip("\r")
+    if buf:
+        yield buf.decode("utf-8", errors="replace").rstrip("\r")
+
+
 async def send_request(
-    client: httpx.AsyncClient,
+    session: aiohttp.ClientSession,
     spec: RequestSpec,
     prompt: Prompt,
     *,
@@ -102,20 +122,20 @@ async def send_request(
     pieces: list[str] = []
     usage: dict | None = None
     finish_reason: str | None = None
+    done_at: float | None = None
     streaming = False  # True once a 200 response started: errors after this are mid-stream
     try:
-        async with client.stream(
-            "POST", spec.full_url, json=spec.payload(prompt), headers=spec.headers()
-        ) as resp:
-            if resp.status_code != 200:
-                body = (await resp.aread()).decode(errors="replace")[:200]
-                res.ok, res.error = False, f"HTTP {resp.status_code}: {body}"
+        async with session.post(spec.full_url, json=spec.payload(prompt),
+                                headers=spec.headers()) as resp:
+            if resp.status != 200:
+                body = (await resp.read()).decode(errors="replace")[:200]
+                res.ok, res.error = False, f"HTTP {resp.status}: {body}"
                 return res
             streaming = True
-            done_at: float | None = None
             # Read to the very end of the body, even after [DONE]: leaving the stream early
-            # makes httpx close the connection, so every request would pay a new TCP connect.
-            async for line in resp.aiter_lines():
+            # closes the connection instead of returning it to the pool, so every request
+            # would pay a new TCP connect.
+            async for line in _lines(resp):
                 if done_at is not None or not line.startswith("data:"):
                     continue
                 data = line[5:].strip()
@@ -148,14 +168,20 @@ async def send_request(
                     elif res.answer_start is None:
                         res.answer_start = t
         res.e2e = (done_at if done_at is not None else time.perf_counter()) - start
-    except httpx.TimeoutException as e:
+    except (aiohttp.ClientConnectorError, aiohttp.ConnectionTimeoutError) as e:
+        # refused, or (often on Windows) no answer before the connect timeout: either way
+        # the server isn't reachable, which is a different problem from a slow response
+        res.ok, res.error = False, f"connect error: {type(e).__name__} {e}"[:200]
+        return res
+    except TimeoutError as e:  # includes aiohttp's read timeouts
         res.ok, res.error = False, f"timeout ({type(e).__name__})"
         return res
-    except (httpx.RemoteProtocolError, httpx.ReadError) as e:
+    except (aiohttp.ServerDisconnectedError, aiohttp.ClientPayloadError,
+            aiohttp.ClientOSError) as e:
         where = "connection dropped mid-stream" if streaming else "connection error"
         res.ok, res.error = False, f"{where}: {type(e).__name__} {e}"[:200]
         return res
-    except httpx.HTTPError as e:
+    except aiohttp.ClientError as e:
         res.ok, res.error = False, f"{type(e).__name__}: {e}"[:200]
         return res
 

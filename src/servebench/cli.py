@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import math
 import os
 import platform
 import sys
+import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -14,7 +16,6 @@ from pathlib import Path
 from typing import Annotated
 from urllib.parse import urlparse
 
-import httpx
 import typer
 from rich.console import Console
 
@@ -55,11 +56,12 @@ def _cpu() -> str | None:
 
 
 def _server_models(url: str, api_key: str | None) -> list[str] | None:
+    """Model ids from GET /models, or None if the server doesn't answer (it's optional)."""
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    req = urllib.request.Request(f"{url.rstrip('/')}/models", headers=headers)
     try:
-        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
-        r = httpx.get(f"{url.rstrip('/')}/models", headers=headers, timeout=5)
-        r.raise_for_status()
-        return [m.get("id", "?") for m in r.json().get("data", [])]
+        with urllib.request.urlopen(req, timeout=5) as r:
+            return [m.get("id", "?") for m in json.load(r).get("data", [])]
     except Exception:
         return None
 

@@ -5,10 +5,10 @@ from __future__ import annotations
 import json
 import os
 import random
+import shutil
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-
-import httpx
 
 DOLLY_URL = (
     "https://huggingface.co/datasets/databricks/databricks-dolly-15k/resolve/main/"
@@ -81,11 +81,8 @@ def download_dolly(force: bool = False) -> Path:
     if path.exists() and not force:
         return path
     tmp = path.with_suffix(".part")
-    with httpx.stream("GET", DOLLY_URL, follow_redirects=True, timeout=60) as r:
-        r.raise_for_status()
-        with tmp.open("wb") as f:
-            for block in r.iter_bytes():
-                f.write(block)
+    with urllib.request.urlopen(DOLLY_URL, timeout=60) as r, tmp.open("wb") as f:
+        shutil.copyfileobj(r, f)  # urlopen follows the Hugging Face redirect
     tmp.replace(path)
     return path
 

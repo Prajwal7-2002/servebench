@@ -1,9 +1,9 @@
 """M1: per-request timings match the mock server's set delays."""
 
-import httpx
 import pytest
 
 from servebench.client import RequestSpec, send_request
+from servebench.load import make_session
 from servebench.prompts import Prompt
 
 # Windows timers tick at ~15 ms, so single timings get that much slack; averages are tighter.
@@ -14,7 +14,7 @@ PROMPT = Prompt("hello there general kenobi")
 
 async def _one(server, **kw) -> object:
     spec = RequestSpec(url=server.url, model="mock-model", **kw)
-    async with httpx.AsyncClient(timeout=30) as client:
+    async with make_session(None, 30) as client:
         return await send_request(client, spec, PROMPT)
 
 
@@ -62,7 +62,7 @@ async def test_falls_back_to_chunk_count_without_usage(server):
 async def test_falls_back_to_counter_without_usage(server):
     server.cfg.send_usage, server.cfg.tokens_per_chunk = False, 3
     spec = RequestSpec(url=server.url, model="mock-model", output_len=9)
-    async with httpx.AsyncClient(timeout=30) as client:
+    async with make_session(None, 30) as client:
         r = await send_request(client, spec, PROMPT, counter=lambda t: len(t.split()))
     assert r.token_source == "tokenizer"
     assert r.output_tokens == 9  # "tok " * 9 -> 9 words
@@ -71,7 +71,7 @@ async def test_falls_back_to_counter_without_usage(server):
 
 async def test_http_error_is_recorded_not_raised(server):
     spec = RequestSpec(url=server.url, model="mock-model")
-    async with httpx.AsyncClient(timeout=30) as client:
+    async with make_session(None, 30) as client:
         r = await send_request(client, spec, Prompt("please FAIL now"))
     assert not r.ok
     assert r.error.startswith("HTTP 500")
@@ -80,16 +80,16 @@ async def test_http_error_is_recorded_not_raised(server):
 
 async def test_connection_error_is_recorded():
     spec = RequestSpec(url="http://127.0.0.1:9/v1", model="x")
-    async with httpx.AsyncClient(timeout=2) as client:
+    async with make_session(None, 2) as client:
         r = await send_request(client, spec, PROMPT)
     assert not r.ok
-    assert "Connect" in r.error
+    assert r.error.startswith("connect error")
 
 
 async def test_timeout_is_recorded(server):
     server.cfg.ttft = 2.0
     spec = RequestSpec(url=server.url, model="mock-model", output_len=2)
-    async with httpx.AsyncClient(timeout=0.3) as client:
+    async with make_session(None, 0.3) as client:
         r = await send_request(client, spec, PROMPT)
     assert not r.ok
     assert r.error.startswith("timeout")
@@ -122,7 +122,7 @@ async def test_connections_are_reused(server):
     # paid a new TCP connect (about 0.3 s each for `localhost` on Windows)
     server.cfg.ttft, server.cfg.itl = 0.01, 0.002
     spec = RequestSpec(url=server.url, model="mock-model", output_len=3)
-    async with httpx.AsyncClient(timeout=30) as client:
+    async with make_session(None, 30) as client:
         for i in range(4):
             r = await send_request(client, spec, PROMPT, index=i)
             assert r.ok, r.error
@@ -144,7 +144,7 @@ async def test_connection_dropped_mid_stream_is_a_failure(server):
 async def test_stalled_stream_times_out(server):
     server.cfg.ttft, server.cfg.itl, server.cfg.stall_after = 0.01, 0.002, 2
     spec = RequestSpec(url=server.url, model="mock-model", output_len=10)
-    async with httpx.AsyncClient(timeout=0.5) as client:
+    async with make_session(None, 0.5) as client:
         r = await send_request(client, spec, PROMPT)
     assert not r.ok
     assert r.error.startswith("timeout")

@@ -82,3 +82,29 @@ def test_new_error_kinds_group_cleanly():
     reqs = [req(i, 0, 0, 0, ok=False, error=e) for i, e in enumerate(errs)]
     assert summarize(reqs, 1.0).errors == {
         "connection dropped mid-stream": 2, "malformed chunk": 1, "incomplete stream": 1}
+
+
+def test_percentile_matches_numpy_linear_method():
+    import random
+
+    import numpy as np
+
+    from servebench.metrics import percentile
+
+    rng = random.Random(0)
+    for n in (1, 2, 3, 10, 101, 1000):
+        vals = sorted(rng.random() for _ in range(n))
+        for q in (0, 1, 50, 90, 99, 100):
+            assert percentile(vals, q) == pytest.approx(float(np.percentile(vals, q)))
+
+
+def test_cli_startup_does_not_import_heavy_libraries():
+    # `servebench --help` / `run` should start fast: charts load matplotlib only when drawn
+    import subprocess
+    import sys
+
+    code = ("import sys, servebench.cli; "
+            "print(','.join(m for m in ('matplotlib', 'numpy') if m in sys.modules))")
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
+                         check=True).stdout.strip()
+    assert out == ""

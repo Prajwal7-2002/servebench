@@ -4,18 +4,29 @@ from __future__ import annotations
 
 from collections import Counter
 
-import numpy as np
-
 from .results import RequestResult, Stats, Summary
+
+
+def percentile(sorted_values: list[float], q: float) -> float:
+    """Linear-interpolation percentile of already-sorted values (numpy's default method).
+
+    Plain Python on purpose: numpy costs ~70 ms of import time on every command, and a
+    level has at most a few thousand values.
+    """
+    if not sorted_values:
+        raise ValueError("percentile of no values")
+    pos = (len(sorted_values) - 1) * q / 100
+    lo = int(pos)
+    hi = min(lo + 1, len(sorted_values) - 1)
+    return sorted_values[lo] + (sorted_values[hi] - sorted_values[lo]) * (pos - lo)
 
 
 def stats(values: list[float]) -> Stats:
     if not values:
         return Stats()
-    a = np.asarray(values, dtype=float)
-    p50, p90, p99 = np.percentile(a, [50, 90, 99])
-    return Stats(mean=float(a.mean()), p50=float(p50), p90=float(p90), p99=float(p99),
-                 max=float(a.max()))
+    a = sorted(values)
+    return Stats(mean=sum(a) / len(a), p50=percentile(a, 50), p90=percentile(a, 90),
+                 p99=percentile(a, 99), max=a[-1])
 
 
 def meets_slo(r: RequestResult, slo_ttft_ms: float | None, slo_tpot_ms: float | None) -> bool:

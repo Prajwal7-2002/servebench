@@ -9,17 +9,23 @@ import json
 import math
 from pathlib import Path
 
-import matplotlib
+from pydantic import ValidationError
+from rich.console import Console
+from rich.table import Table
 
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
-import numpy as np  # noqa: E402
-from pydantic import ValidationError  # noqa: E402
-from rich.console import Console  # noqa: E402
-from rich.table import Table  # noqa: E402
+from .metrics import summarize
+from .results import SCHEMA_VERSION, LevelResult, RunResult, Summary
 
-from .metrics import summarize  # noqa: E402
-from .results import SCHEMA_VERSION, LevelResult, RunResult, Summary  # noqa: E402
+
+def _pyplot():
+    """matplotlib is only imported when a chart is drawn: it costs ~0.4 s of startup on
+    every command otherwise (`servebench --help`, `run`, ...)."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    return plt
 
 # Categorical slots in fixed order (one per run), stepped separately for light and dark.
 THEMES = {
@@ -250,6 +256,7 @@ def sweep_figure(runs: list[RunResult], theme_name: str = "light"):
     xs_all = sorted({_x_values(lv, inf_x) for r in runs for lv in r.levels})
     log_x = len(xs_all) > 2 and xs_all[0] > 0 and xs_all[-1] / xs_all[0] >= 4
 
+    plt = _pyplot()
     fig, axes = plt.subplots(2, 2, figsize=(10, 7), dpi=110)
     fig.patch.set_facecolor(theme["surface"])
     direct = len(runs) <= 4
@@ -292,6 +299,7 @@ def sweep_figure(runs: list[RunResult], theme_name: str = "light"):
 def distribution_figure(runs: list[RunResult], theme_name: str = "light"):
     """CDFs of TTFT and TPOT at each run's highest load level."""
     theme = THEMES[theme_name]
+    plt = _pyplot()
     fig, axes = plt.subplots(1, 2, figsize=(10, 3.6), dpi=110)
     fig.patch.set_facecolor(theme["surface"])
     for ax, (title, get) in zip(axes, [("TTFT (ms)", lambda r: r.ttft),
@@ -302,10 +310,10 @@ def distribution_figure(runs: list[RunResult], theme_name: str = "light"):
             if not run.levels:
                 continue
             lv = run.levels[-1]
-            vals = np.sort([v * 1000 for r in lv.requests if r.ok and (v := get(r)) is not None])
+            vals = sorted(v * 1000 for r in lv.requests if r.ok and (v := get(r)) is not None)
             if len(vals) == 0:
                 continue
-            frac = np.arange(1, len(vals) + 1) / len(vals)
+            frac = [(i + 1) / len(vals) for i in range(len(vals))]
             ax.step(vals, frac, where="post", color=theme["series"][i], linewidth=2,
                     label=f"{run.label} ({lv.label})")
         ax.set_ylim(0, 1.02)
@@ -322,7 +330,7 @@ def distribution_figure(runs: list[RunResult], theme_name: str = "light"):
 def _png(fig) -> bytes:
     buf = io.BytesIO()
     fig.savefig(buf, format="png", facecolor=fig.get_facecolor())
-    plt.close(fig)
+    _pyplot().close(fig)
     return buf.getvalue()
 
 

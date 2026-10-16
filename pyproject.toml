@@ -19,12 +19,11 @@ classifiers = [
     "Topic :: System :: Benchmark",
 ]
 dependencies = [
-    "httpx>=0.27",
     "typer>=0.12",
     "rich>=13",
     "pydantic>=2.6",
-    "numpy>=1.26",
     "matplotlib>=3.8",
+    "aiohttp>=3.10",
 ]
 
 [project.optional-dependencies]
@@ -33,7 +32,14 @@ hf = ["transformers>=4.40"]
 
 [dependency-groups]
 # `uv sync` installs this group by default
-dev = ["fastapi>=0.110", "uvicorn>=0.29", "pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.5"]
+dev = [
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.5",
+    "httpx>=0.27",
+]
 
 [project.scripts]
 servebench = "servebench.cli:app"
