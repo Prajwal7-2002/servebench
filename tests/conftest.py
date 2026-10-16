@@ -3,6 +3,7 @@ import threading
 import time
 from dataclasses import replace
 
+import httpx
 import pytest
 import uvicorn
 
@@ -27,6 +28,20 @@ class FakeServer:
             if time.time() > deadline:
                 raise RuntimeError("fake server did not start")
             time.sleep(0.02)
+        self._warm_up()
+
+    def _warm_up(self) -> None:
+        # The first request through the app pays one-off costs (lazy imports, FastAPI
+        # building its handlers). On a cold CI runner that added ~50 ms to the first test's
+        # TTFT. Pay it here, like servebench's own warm-up requests do for real servers.
+        body = {"model": "fake-model", "max_tokens": 2, "stream": True,
+                "stream_options": {"include_usage": True}}
+        for path, extra in (("chat/completions", {"messages": [{"role": "user",
+                                                                "content": "warm up"}]}),
+                            ("completions", {"prompt": "warm up"})):
+            with httpx.stream("POST", f"{self.url}/{path}", json=body | extra, timeout=10) as r:
+                r.read()
+        self.app.state.stats.reset()
 
     @property
     def cfg(self) -> FakeConfig:
