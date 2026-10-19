@@ -12,7 +12,7 @@ from collections.abc import Awaitable, Callable, Iterable, Iterator
 import aiohttp
 
 from .client import RequestSpec, send_request
-from .metrics import percentile, summarize
+from .metrics import percentile, summarize, summarize_repeats
 from .prompts import Prompt
 from .results import LevelResult, RequestResult
 from .tokens import Counter
@@ -191,6 +191,8 @@ async def run_sweep(
     num_requests: int | None,
     *,
     duration: float | None = None,
+    min_duration: float | None = None,
+    repeat: int = 1,
     warmup_requests: int = 2,
     timeout: float = 300.0,
     seed: int = 0,
@@ -203,9 +205,9 @@ async def run_sweep(
     """Run every level. `prompts_for(n, seed)` returns n prompts; each level gets fresh ones."""
     await check_warmup(spec, prompts_for, warmup_requests, timeout, seed)
     measure = level_runner(
-        spec, prompts_for, mode, num_requests, duration=duration, timeout=timeout, seed=seed,
-        max_concurrency=max_concurrency, slo_ttft_ms=slo_ttft_ms, slo_tpot_ms=slo_tpot_ms,
-        counter=counter, on_level=on_level,
+        spec, prompts_for, mode, num_requests, duration=duration, min_duration=min_duration,
+        repeat=repeat, timeout=timeout, seed=seed, max_concurrency=max_concurrency,
+        slo_ttft_ms=slo_ttft_ms, slo_tpot_ms=slo_tpot_ms, counter=counter, on_level=on_level,
     )
     return [await measure(value) for value in levels]
 
@@ -227,7 +229,7 @@ async def check_warmup(
         # the client reports refused and timed-out connects both as "connect error"
         if err.startswith("connect error"):
             raise RuntimeError(f"could not connect to {spec.url}. Is the server running? "
-                               f"({err})")
+                                f"({err})")
         raise RuntimeError(f"all warm-up requests failed, first error: {err}")
 
 
@@ -238,6 +240,8 @@ def level_runner(
     num_requests: int | None,
     *,
     duration: float | None = None,
+    min_duration: float | None = None,
+    repeat: int = 1,
     timeout: float = 300.0,
     seed: int = 0,
     max_concurrency: int | None = None,
@@ -246,27 +250,65 @@ def level_runner(
     counter: Counter | None = None,
     on_level: Callable[[LevelResult], None] | None = None,
 ) -> Callable[[float], Awaitable[LevelResult]]:
-    """Return `measure(value)`, which runs one level; the k-th call uses seed + k.
+    """Return `measure(value)`, which runs one level; the k-th call uses seed + k * 1000.
 
     Without `duration` a level sends `num_requests` (or a default per load). With it, a level
     runs for `duration` seconds on an endless prompt stream, capped by `num_requests` if given.
+    With `repeat > 1`, each level is executed N times and statistics (mean ± std) are recorded.
     """
+    effective_duration = max(duration or 0.0, min_duration or 0.0) or None
     calls = itertools.count()
 
     async def measure(value: float) -> LevelResult:
         k = next(calls)
-        prompts: Iterable[Prompt]
-        if duration:
-            prompts = prompt_stream(prompts_for, seed + k)
-            if num_requests:
-                prompts = itertools.islice(prompts, num_requests)
+        trials: list[LevelResult] = []
+        for r_idx in range(repeat):
+            trial_seed = seed + k * 1000 + r_idx
+            prompts: Iterable[Prompt]
+            if effective_duration:
+                prompts = prompt_stream(prompts_for, trial_seed)
+                if num_requests:
+                    prompts = itertools.islice(prompts, num_requests)
+            else:
+                prompts = prompts_for(num_requests or default_num_requests(mode, value), trial_seed)
+            trial = await run_level(
+                spec, prompts, mode, value, duration=effective_duration, timeout=timeout,
+                seed=trial_seed, max_concurrency=max_concurrency, slo_ttft_ms=slo_ttft_ms,
+                slo_tpot_ms=slo_tpot_ms, counter=counter,
+            )
+            trials.append(trial)
+
+        if repeat <= 1:
+            level = trials[0]
         else:
-            prompts = prompts_for(num_requests or default_num_requests(mode, value), seed + k)
-        level = await run_level(
-            spec, prompts, mode, value, duration=duration, timeout=timeout, seed=seed + k,
-            max_concurrency=max_concurrency, slo_ttft_ms=slo_ttft_ms, slo_tpot_ms=slo_tpot_ms,
-            counter=counter,
-        )
+            all_requests: list[RequestResult] = []
+            idx_offset = 0
+            for tr in trials:
+                for req in tr.requests:
+                    req_copy = req.model_copy()
+                    req_copy.index = idx_offset
+                    idx_offset += 1
+                    all_requests.append(req_copy)
+
+            total_duration = sum(tr.duration for tr in trials)
+            combined_summary = summarize(all_requests, total_duration, slo_ttft_ms, slo_tpot_ms)
+            repeat_summaries = [tr.summary for tr in trials]
+            repeat_metrics = summarize_repeats(repeat_summaries)
+            lags = [tr.client_lag_p99_ms for tr in trials if tr.client_lag_p99_ms is not None]
+            combined_lag = max(lags) if lags else None
+
+            level = LevelResult(
+                mode=mode,
+                value=value,
+                duration=total_duration,
+                client_lag_p99_ms=combined_lag,
+                requests=all_requests,
+                summary=combined_summary,
+                repeat_count=repeat,
+                repeats=repeat_summaries,
+                repeat_metrics=repeat_metrics,
+            )
+
         if on_level:
             on_level(level)
         return level

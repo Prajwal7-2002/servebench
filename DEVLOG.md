@@ -91,3 +91,21 @@
   one request (its own log: 2280 ms/token vs 5 ms). Reports now flag stalls (>5 s and >50x
   median gap); quick uses a 2-minute read timeout. Ollama's per-request log timings matched
   servebench's client-side TTFT/TPOT closely: a good independent check.
+
+## 2026-10-19: L1 Learning Guide & Statistical Rigor
+
+- Published `docs/learn-inference.md`: 7 hands-on experiments with Ollama explaining prefill vs
+  decode, TTFT scaling, memory-bandwidth-bound TPOT, batching slots, queueing p99 knees,
+  Little's Law, open vs closed loop, and measurement pitfalls. Backed by real laptop RTX 3050 runs
+  in `results/learn/`.
+- Statistical rigor:
+  - `Stats.count` tracked on every percentile; report flags small sample sizes (<100 requests)
+    where p99 is bounded by sample maximum.
+  - Added `--repeat N`: runs each load level N times, calculates mean ± std and two-tailed 95%
+    Student's t confidence intervals across trials for throughput, TTFT, and TPOT.
+  - Steady-state throughput: computes throughput excluding initial connection and warm-up ramp-up.
+  - Added benchmark config files (`servebench run -c bench.yaml` / `.json` / `.toml`) to check
+    benchmark setups into git.
+  - Added `--csv` and `--csv-requests` to export level summaries and per-request raw traces for
+    pandas/Excel.
+

@@ -60,6 +60,20 @@ No model at hand? `uv tool install --from . "servebench[mock]"` adds `servebench
 a stand-in server with set timings, so you can try every command without a GPU
 ([see How it's tested](#how-its-tested)).
 
+## Learn LLM inference by measuring it
+
+Want to understand how inference engines, batching, and queueing behave under the hood?
+Follow our hands-on guide: **[docs/learn-inference.md](docs/learn-inference.md)**.
+
+It walks through 7 reproducible experiments with Ollama:
+1. **Prefill scaling**: Why TTFT scales linearly with prompt length (~100 ms / 1k tokens).
+2. **Decode bottleneck**: Why TPOT is constant (~4.9 ms/tok, ~200 tok/s) regardless of prompt length.
+3. **Batching & slots**: Why `OLLAMA_NUM_PARALLEL=4` doubles throughput to 385 tok/s, and why 8 slots plateaus.
+4. **The p99 latency knee**: Why p50 hides queues while p99 spikes 5× (197 ms → 943 ms) when slots fill.
+5. **Little's Law in practice**: Proving $L = \lambda W$ with real serving numbers.
+6. **Closed vs. open loop**: Why concurrency sweeps mask production breaking points.
+7. **Benchmarking pitfalls**: Prompt cache hits, connection resets, and warm-up bias.
+
 ## Results
 
 ### Ollama on a laptop GPU: what `OLLAMA_NUM_PARALLEL` buys

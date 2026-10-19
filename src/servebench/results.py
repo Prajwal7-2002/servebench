@@ -54,6 +54,24 @@ class Stats(BaseModel):
     p90: float | None = None
     p99: float | None = None
     max: float | None = None
+    count: int = 0
+
+    @property
+    def p99_is_approx(self) -> bool:
+        """True if sample count is under 100, meaning p99 approximates the sample maximum."""
+        return 0 < self.count < 100
+
+
+class RepeatMetric(BaseModel):
+    """Statistical summary across multiple repeated trials of a level."""
+
+    mean: float
+    std: float
+    min: float
+    max: float
+    ci95: tuple[float, float] | None = Field(
+        None, description="95% two-tailed confidence interval [lower, upper]"
+    )
 
 
 class Summary(BaseModel):
@@ -64,6 +82,12 @@ class Summary(BaseModel):
     request_throughput: float
     output_throughput: float
     input_throughput: float | None = None
+    steady_state_request_throughput: float | None = Field(
+        None, description="Request throughput excluding ramp-up"
+    )
+    steady_state_output_throughput: float | None = Field(
+        None, description="Output token throughput excluding ramp-up"
+    )
     goodput: float
     slo_attainment: float | None = Field(
         None, description="Share of all requests (failed ones included) that met the SLOs")
@@ -95,6 +119,13 @@ class LevelResult(BaseModel):
     )
     requests: list[RequestResult]
     summary: Summary
+    repeat_count: int = Field(1, description="Number of repeat trials conducted for this level")
+    repeats: list[Summary] | None = Field(
+        None, description="Summary from each repeat trial when repeat > 1"
+    )
+    repeat_metrics: dict[str, RepeatMetric] | None = Field(
+        None, description="Mean, std, min, max, ci95 across repeats"
+    )
 
     @property
     def label(self) -> str:
@@ -117,6 +148,10 @@ class RunConfig(BaseModel):
     max_concurrency: int | None = None
     num_requests: int | None = None
     duration: float | None = Field(None, description="Seconds per level, for timed runs")
+    min_duration: float | None = Field(
+        None, description="Minimum duration in seconds per level for steady state"
+    )
+    repeat: int = Field(1, description="Number of times each level is repeated")
     warmup: int = 2
     seed: int = 0
     ignore_eos: bool = True

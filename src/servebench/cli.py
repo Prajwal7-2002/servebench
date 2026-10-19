@@ -26,7 +26,16 @@ from .capacity import find_capacity, passes
 from .client import RequestSpec
 from .load import check_warmup, level_runner, run_sweep
 from .prompts import Prompt, load_prompts
-from .report import RunFileError, load_run, print_run, resummarize, save_run, write_report
+from .report import (
+    RunFileError,
+    load_run,
+    print_run,
+    resummarize,
+    save_run,
+    write_csv,
+    write_report,
+    write_requests_csv,
+)
 from .results import Environment, LevelResult, RunConfig, RunResult
 from .tokens import Counter, make_counter
 
@@ -123,14 +132,56 @@ class Setup:
             self.env.model_info = detect.model_info(self.server, self.cfg.model)
 
 
+def load_config_file(path: Path) -> dict:
+    if not path.is_file():
+        raise typer.BadParameter(f"config file '{path}' does not exist")
+    text = path.read_text(encoding="utf-8")
+    suffix = path.suffix.lower()
+    if suffix in (".yaml", ".yml"):
+        import yaml
+        try:
+            data = yaml.safe_load(text)
+        except Exception as e:
+            raise typer.BadParameter(f"error parsing YAML config '{path}': {e}") from e
+    elif suffix == ".json":
+        try:
+            data = json.loads(text)
+        except Exception as e:
+            raise typer.BadParameter(f"error parsing JSON config '{path}': {e}") from e
+    elif suffix == ".toml":
+        import tomllib
+        try:
+            data = tomllib.loads(text)
+        except Exception as e:
+            raise typer.BadParameter(f"error parsing TOML config '{path}': {e}") from e
+    else:
+        try:
+            import yaml
+            data = yaml.safe_load(text)
+        except Exception:
+            try:
+                data = json.loads(text)
+            except Exception as e:
+                raise typer.BadParameter(
+                    f"could not parse config '{path}' as YAML or JSON: {e}"
+                ) from e
+    if not isinstance(data, dict):
+        raise typer.BadParameter(f"config file '{path}' must define a dictionary")
+    return data
+
+
 def _setup(*, url, model, mode, levels, max_concurrency, num_requests, duration,
-           input_len, output_len,
+           min_duration=None, repeat=1, input_len, output_len,
            prompts, endpoint, ignore_eos, temperature, warmup, seed, timeout, slo_ttft_ms,
            slo_tpot_ms, tokenizer, api_key, notes) -> Setup:
     if endpoint not in ("chat", "completions"):
         raise typer.BadParameter("--endpoint must be 'chat' or 'completions'")
     if duration is not None and duration <= 0:
         raise typer.BadParameter("--duration must be a positive number of seconds")
+    if min_duration is not None and min_duration <= 0:
+        raise typer.BadParameter("--min-duration must be a positive number of seconds")
+    if repeat < 1:
+        raise typer.BadParameter("--repeat must be at least 1")
     if seed is None:
         # Fresh prompts each run: with a fixed default seed, a second run sends the same
         # prompts and servers with prompt/prefix caching (Ollama, llama.cpp, vLLM) skip
@@ -140,7 +191,8 @@ def _setup(*, url, model, mode, levels, max_concurrency, num_requests, duration,
     cfg = RunConfig(
         url=url, model=model, endpoint=endpoint, prompts=prompts, input_len=input_len,
         output_len=output_len, mode=mode, levels=levels, max_concurrency=max_concurrency,
-        num_requests=num_requests, duration=duration, warmup=warmup, seed=seed,
+        num_requests=num_requests, duration=duration, min_duration=min_duration,
+        repeat=repeat, warmup=warmup, seed=seed,
         ignore_eos=ignore_eos,
         temperature=temperature, timeout=timeout, slo_ttft_ms=slo_ttft_ms,
         slo_tpot_ms=slo_tpot_ms, tokenizer=tokenizer,
@@ -183,22 +235,42 @@ def _print_level(lv: LevelResult, verdict: str = "") -> None:
                   f"{sm.output_throughput:.1f} tok/s, TTFT p50 {ttft}{in_slo}{verdict}")
 
 
-def _finish(result: RunResult, out: Path | None) -> None:
+def _finish(result: RunResult, out: Path | None, csv_path: Path | None = None,
+            csv_requests_path: Path | None = None) -> None:
     print_run(result, console)
     if out:
         save_run(result, out)
         console.print(f"Saved {out}")
+    if csv_path:
+        write_csv([result], csv_path)
+        console.print(f"Saved CSV {csv_path}")
+    if csv_requests_path:
+        write_requests_csv(result, csv_requests_path)
+        console.print(f"Saved requests CSV {csv_requests_path}")
 
 
 @app.command()
 def run(
-    url: Url,
-    model: Model,
+    ctx: typer.Context,
+    url: Annotated[str | None, typer.Option(
+        help="Base URL of the API, e.g. http://localhost:11434/v1")] = None,
+    model: Annotated[str | None, typer.Option(
+        help="Model name as the server knows it")] = None,
     concurrency: Annotated[str | None, typer.Option(
         help="Closed-loop sweep: comma-separated in-flight request counts, e.g. 1,2,4,8")] = None,
     rate: Annotated[str | None, typer.Option(
         help="Open-loop sweep: comma-separated Poisson arrival rates in req/s; 'inf' sends "
              "all at once")] = None,
+    config: Annotated[Path | None, typer.Option("-c", "--config",
+        help="YAML, TOML, or JSON benchmark config file")] = None,
+    repeat: Annotated[int, typer.Option("-r", "--repeat",
+        help="Run each level N times to measure variance (mean ± spread)")] = 1,
+    min_duration: Annotated[float | None, typer.Option(
+        help="Minimum duration in seconds per level to ensure steady-state measurement")] = None,
+    csv: Annotated[Path | None, typer.Option(
+        help="Write level summaries to this CSV file")] = None,
+    csv_requests: Annotated[Path | None, typer.Option(
+        help="Write per-request details to this CSV file")] = None,
     max_concurrency: MaxConcurrency = None,
     num_requests: NumRequests = None,
     duration: Duration = None,
@@ -220,6 +292,61 @@ def run(
     out: Out = None,
 ) -> None:
     """Benchmark an endpoint over a sweep of load levels."""
+    if config:
+        cfg_data = load_config_file(config)
+
+        def _get(name, current):
+            src = ctx.get_parameter_source(name)
+            if src is None or str(src).endswith("DEFAULT") or current is None:
+                return cfg_data.get(name, current)
+            return current
+
+        url = _get("url", url)
+        model = _get("model", model)
+        concurrency = _get("concurrency", concurrency)
+        rate = _get("rate", rate)
+        max_concurrency = _get("max_concurrency", max_concurrency)
+        num_requests = _get("num_requests", num_requests)
+        duration = _get("duration", duration)
+        min_duration = _get("min_duration", min_duration)
+        repeat = _get("repeat", repeat)
+        input_len = _get("input_len", input_len)
+        output_len = _get("output_len", output_len)
+        prompts = _get("prompts", prompts)
+        endpoint = _get("endpoint", endpoint)
+        ignore_eos = _get("ignore_eos", ignore_eos)
+        temperature = _get("temperature", temperature)
+        warmup = _get("warmup", warmup)
+        seed = _get("seed", seed)
+        timeout = _get("timeout", timeout)
+        slo_ttft_ms = _get("slo_ttft_ms", slo_ttft_ms)
+        slo_tpot_ms = _get("slo_tpot_ms", slo_tpot_ms)
+        tokenizer = _get("tokenizer", tokenizer)
+        api_key = _get("api_key", api_key)
+        label = _get("label", label)
+        notes = _get("notes", notes)
+        if out is None and "out" in cfg_data:
+            out = Path(cfg_data["out"])
+        if csv is None and "csv" in cfg_data:
+            csv = Path(cfg_data["csv"])
+        if csv_requests is None and "csv_requests" in cfg_data:
+            csv_requests = Path(cfg_data["csv_requests"])
+
+    if not url:
+        raise typer.BadParameter("give --url or specify it in --config")
+    if not model:
+        raise typer.BadParameter("give --model or specify it in --config")
+
+    if isinstance(concurrency, (list, tuple)):
+        concurrency = ",".join(str(x) for x in concurrency)
+    elif concurrency is not None:
+        concurrency = str(concurrency)
+
+    if isinstance(rate, (list, tuple)):
+        rate = ",".join(str(x) for x in rate)
+    elif rate is not None:
+        rate = str(rate)
+
     if (concurrency is None) == (rate is None):
         raise typer.BadParameter("give exactly one of --concurrency or --rate")
     mode = "concurrency" if concurrency is not None else "rate"
@@ -229,18 +356,21 @@ def run(
     if duration and any(math.isinf(v) for v in levels):
         raise typer.BadParameter("--duration needs finite rates ('inf' sends all at once)")
     st = _setup(url=url, model=model, mode=mode, levels=levels, max_concurrency=max_concurrency,
-                num_requests=num_requests, duration=duration, input_len=input_len,
-                output_len=output_len,
+                num_requests=num_requests, duration=duration, min_duration=min_duration,
+                repeat=repeat, input_len=input_len, output_len=output_len,
                 prompts=prompts, endpoint=endpoint, ignore_eos=ignore_eos,
                 temperature=temperature, warmup=warmup, seed=seed, timeout=timeout,
                 slo_ttft_ms=slo_ttft_ms, slo_tpot_ms=slo_tpot_ms, tokenizer=tokenizer,
                 api_key=api_key, notes=notes)
 
-    console.print(f"servebench {__version__}: {mode} sweep {levels} against {url} ({model})")
+    rep_txt = f" (x{repeat} repeats)" if repeat > 1 else ""
+    console.print(
+        f"servebench {__version__}: {mode} sweep {levels}{rep_txt} against {url} ({model})"
+    )
     try:
         levels_out = asyncio.run(run_sweep(
             st.spec, st.prompts_for, mode, levels, num_requests, duration=duration,
-            warmup_requests=warmup,
+            min_duration=min_duration, repeat=repeat, warmup_requests=warmup,
             timeout=timeout, seed=st.cfg.seed, max_concurrency=max_concurrency,
             slo_ttft_ms=slo_ttft_ms, slo_tpot_ms=slo_tpot_ms, counter=st.counter,
             on_level=_print_level,
@@ -250,7 +380,7 @@ def run(
         raise typer.Exit(1) from e
     st.after_run()
     _finish(RunResult(label=label or (out.stem if out else model), config=st.cfg,
-                      environment=st.env, levels=levels_out), out)
+                      environment=st.env, levels=levels_out), out, csv, csv_requests)
 
 
 @app.command("find-capacity")
@@ -428,12 +558,15 @@ def report(
     runs: Annotated[list[Path], typer.Argument(
         help="One or more run.json files", exists=True, dir_okay=False)],
     out: Annotated[Path | None, typer.Option(help="Write an .html or .md report")] = None,
+    csv: Annotated[Path | None, typer.Option(help="Write level summaries to this CSV file")] = None,
+    csv_requests: Annotated[Path | None, typer.Option(
+        help="Write per-request details to this CSV file (first run)")] = None,
     slo_ttft_ms: Annotated[float | None, typer.Option(
         help="Recompute goodput with this TTFT SLO")] = None,
     slo_tpot_ms: Annotated[float | None, typer.Option(
         help="Recompute goodput with this TPOT SLO")] = None,
 ) -> None:
-    """Print and compare saved runs; optionally write an HTML/Markdown report with charts."""
+    """Print and compare saved runs; optionally write an HTML/Markdown report with charts or CSV."""
     try:
         loaded = [load_run(p) for p in runs]
     except RunFileError as e:
@@ -448,8 +581,15 @@ def report(
         try:
             write_report(loaded, out)
         except ValueError as e:
-            raise typer.BadParameter(str(e)) from e
-        console.print(f"Wrote {out}")
+            console.print(f"[red]{e}[/red]")
+            raise typer.Exit(1) from e
+        console.print(f"Saved {out}")
+    if csv:
+        write_csv(loaded, csv)
+        console.print(f"Saved CSV {csv}")
+    if csv_requests and loaded:
+        write_requests_csv(loaded[0], csv_requests)
+        console.print(f"Saved requests CSV {csv_requests}")
 
 
 @app.command()

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import csv
 import html
 import io
 import json
@@ -71,6 +72,89 @@ def save_run(run: RunResult, path: str | Path) -> None:
     p.write_text(run.model_dump_json(indent=2), encoding="utf-8")
 
 
+def to_csv(runs: list[RunResult]) -> str:
+    buf = io.StringIO()
+    writer = csv.writer(buf, lineterminator="\n")
+    writer.writerow([
+        "run", "label", "mode", "level", "repeat_count", "completed", "failed",
+        "req_s", "req_s_std", "out_tok_s", "out_tok_s_std", "steady_out_tok_s",
+        "ttft_p50_ms", "ttft_p50_std_ms", "ttft_p90_ms", "ttft_p99_ms",
+        "tpot_p50_ms", "tpot_p50_std_ms", "tpot_p90_ms", "tpot_p99_ms",
+        "itl_p50_ms", "e2e_p50_s", "goodput", "slo_attainment_pct",
+    ])
+    for run in runs:
+        for lv in run.levels:
+            s = lv.summary
+            rm = lv.repeat_metrics or {}
+            def _val(x: float | None, scale: float = 1.0, fmt: str = "{:.3f}") -> str:
+                return "" if x is None else fmt.format(x * scale)
+
+            req_std = _val(rm["request_throughput"].std) if "request_throughput" in rm else ""
+            out_std = (
+                _val(rm["output_throughput"].std, fmt="{:.1f}")
+                if "output_throughput" in rm
+                else ""
+            )
+            ttft_std = (
+                _val(rm["ttft_p50"].std, scale=1000.0, fmt="{:.1f}")
+                if "ttft_p50" in rm
+                else ""
+            )
+            tpot_std = (
+                _val(rm["tpot_p50"].std, scale=1000.0, fmt="{:.2f}")
+                if "tpot_p50" in rm
+                else ""
+            )
+
+            writer.writerow([
+                run.label, lv.label, lv.mode, lv.value, lv.repeat_count, s.completed, s.failed,
+                _val(s.request_throughput, fmt="{:.2f}"), req_std,
+                _val(s.output_throughput, fmt="{:.1f}"), out_std,
+                _val(s.steady_state_output_throughput, fmt="{:.1f}"),
+                _val(s.ttft.p50, scale=1000.0, fmt="{:.1f}"), ttft_std,
+                _val(s.ttft.p90, scale=1000.0, fmt="{:.1f}"),
+                _val(s.ttft.p99, scale=1000.0, fmt="{:.1f}"),
+                _val(s.tpot.p50, scale=1000.0, fmt="{:.2f}"), tpot_std,
+                _val(s.tpot.p90, scale=1000.0, fmt="{:.2f}"),
+                _val(s.tpot.p99, scale=1000.0, fmt="{:.2f}"),
+                _val(s.itl.p50, scale=1000.0, fmt="{:.2f}"),
+                _val(s.e2e.p50, fmt="{:.2f}"),
+                _val(s.goodput, fmt="{:.2f}"),
+                _val(s.slo_attainment, scale=100.0, fmt="{:.1f}"),
+            ])
+    return buf.getvalue()
+
+
+def write_csv(runs: list[RunResult], path: str | Path) -> None:
+    text = to_csv(runs)
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(text, encoding="utf-8")
+
+
+def write_requests_csv(run: RunResult, path: str | Path) -> None:
+    buf = io.StringIO()
+    writer = csv.writer(buf, lineterminator="\n")
+    writer.writerow([
+        "level", "index", "ok", "error", "start_s", "ttft_ms", "e2e_s",
+        "output_tokens", "prompt_tokens", "tpot_ms", "chunks", "token_source",
+    ])
+    for lv in run.levels:
+        for r in lv.requests:
+            writer.writerow([
+                lv.label, r.index, r.ok, r.error or "",
+                f"{r.start:.4f}",
+                f"{r.ttft * 1000:.2f}" if r.ttft is not None else "",
+                f"{r.e2e:.4f}" if r.e2e is not None else "",
+                r.output_tokens, r.prompt_tokens or "",
+                f"{r.tpot * 1000:.2f}" if r.tpot is not None else "",
+                r.num_chunks, r.token_source,
+            ])
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(buf.getvalue(), encoding="utf-8")
+
+
 def resummarize(run: RunResult, slo_ttft_ms: float | None, slo_tpot_ms: float | None) -> None:
     """Recompute summaries from raw requests, e.g. to apply different SLOs in a report."""
     for lv in run.levels:
@@ -103,9 +187,31 @@ def _pct(x: float | None) -> str:
 
 def level_row(lv: LevelResult) -> list[str]:
     s: Summary = lv.summary
+    rm = lv.repeat_metrics or {}
+    if "request_throughput" in rm:
+        req_s = f"{rm['request_throughput'].mean:.2f}±{rm['request_throughput'].std:.2f}"
+    else:
+        req_s = _num(s.request_throughput, 2)
+
+    if "output_throughput" in rm:
+        out_tok = f"{rm['output_throughput'].mean:.0f}±{rm['output_throughput'].std:.0f}"
+    else:
+        out_tok = _num(s.output_throughput)
+
+    if "ttft_p50" in rm:
+        ttft_p50 = f"{rm['ttft_p50'].mean * 1000:.0f}±{rm['ttft_p50'].std * 1000:.0f}"
+    else:
+        ttft_p50 = _ms(s.ttft.p50)
+
+    if "tpot_p50" in rm:
+        tpot_p50 = f"{rm['tpot_p50'].mean * 1000:.1f}±{rm['tpot_p50'].std * 1000:.1f}"
+    else:
+        tpot_p50 = _ms(s.tpot.p50)
+
+    lbl = lv.label + (f" (x{lv.repeat_count})" if lv.repeat_count > 1 else "")
     return [
-        lv.label, f"{s.completed}/{s.failed}", _num(s.request_throughput, 2),
-        _num(s.output_throughput), _ms(s.ttft.p50), _ms(s.ttft.p99), _ms(s.tpot.p50),
+        lbl, f"{s.completed}/{s.failed}", req_s,
+        out_tok, ttft_p50, _ms(s.ttft.p99), tpot_p50,
         _ms(s.tpot.p99), _ms(s.itl.p50), _num(s.e2e.p50, 2), _num(s.goodput, 2),
         _num(s.tokens_per_chunk, 2), _pct(s.slo_attainment),
     ]
@@ -187,6 +293,13 @@ def warnings_for(run: RunResult) -> list[str]:
                        f"(typical gap {median * 1000:.0f} ms). That is the server pausing "
                        "(GPU/driver power state, another app on the GPU, memory swapping); "
                        "this level's averages include it. Rerun to confirm.")
+    small_levels = [lv.label for lv in run.levels if 0 < lv.summary.completed < 100]
+    if small_levels:
+        out.append(
+            f"Small sample size at {', '.join(small_levels)} (<100 requests): "
+            "p99 metrics approximate the sample maximum. Run >=100 requests for "
+            "statistically confident p99s."
+        )
     return out
 
 

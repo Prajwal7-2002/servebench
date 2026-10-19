@@ -2010,6 +2010,7 @@ dependencies = [
     { name = "aiohttp" },
     { name = "matplotlib" },
     { name = "pydantic" },
+    { name = "pyyaml" },
     { name = "rich" },
     { name = "typer" },
 ]
@@ -2039,6 +2040,7 @@ requires-dist = [
     { name = "fastapi", marker = "extra == 'mock'", specifier = ">=0.110" },
     { name = "matplotlib", specifier = ">=3.8" },
     { name = "pydantic", specifier = ">=2.6" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "rich", specifier = ">=13" },
     { name = "transformers", marker = "extra == 'hf'", specifier = ">=4.40" },
     { name = "typer", specifier = ">=0.12" },
