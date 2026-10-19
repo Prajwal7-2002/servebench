@@ -1,0 +1,48 @@
+site_name: Servebench
+site_description: Load-test any OpenAI-compatible LLM endpoint with statistical rigor, hardware telemetry, and automated bottleneck diagnosis.
+site_author: Prajwal Pujari
+site_url: https://github.com/prajwalpujari/servebench
+
+repo_name: prajwalpujari/servebench
+repo_url: https://github.com/prajwalpujari/servebench
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - content.code.copy
+    - navigation.sections
+    - navigation.top
+
+nav:
+  - Overview: index.md
+  - CLI Reference: cli-reference.md
+  - Python API: python-api.md
+  - Metrics & Math: metrics-glossary.md
+  - CI/CD Regression Gating: ci-cd-guide.md
+  - Engine Configuration: engines.md
+  - Learn LLM Inference: learn-inference.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.arithmatex:
+      generic: true
+  - tables
+  - toc:
+      permalink: true

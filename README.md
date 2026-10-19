@@ -52,8 +52,36 @@ servebench run --url http://127.0.0.1:11434/v1 --model qwen2.5:0.5b \
 servebench find-capacity --url http://127.0.0.1:11434/v1 --model qwen2.5:0.5b \
     --out runs/ollama-cap.json
 
-# compare runs side by side, with charts
+# compare multiple runs side by side, with charts and GPU telemetry
+servebench compare-models runs/model-q4.json runs/model-fp16.json
+
+# CI performance regression gate (fails with exit code 1 on regressions)
+servebench check candidate.json --baseline baseline.json \
+    --max-ttft-degradation-pct 15.0 --max-throughput-degradation-pct 10.0
+
+# generate interactive HTML report
 servebench report runs/ollama.json runs/llamacpp.json --out report.html
+```
+
+### Python API
+
+Use Servebench programmatically in your own evaluation harnesses or notebooks:
+
+```python
+import servebench
+
+res = servebench.benchmark(
+    url="http://127.0.0.1:8000/v1",
+    model="llama-3-8b",
+    levels=[1, 2, 4, 8],
+    preset="chat",
+    gpu_telemetry=True,
+)
+print(f"Peak: {max(lv.summary.output_throughput for lv in res.levels):.1f} tok/s")
+
+# Evaluate CI performance regression
+report = servebench.check_regression("candidate.json", "baseline.json")
+assert report.passed, "Serving latency regressed!"
 ```
 
 No model at hand? `uv tool install --from . "servebench[mock]"` adds `servebench mock-server`,

@@ -136,3 +136,20 @@
   - Added shared prefix generation (`--shared-prefix-tokens`) to measure KV cache reuse.
 - Added `servebench compare-models` and `servebench find-context-limit` CLI commands.
 
+## 2026-10-19: v1.0 Product Release & CI Regression Gating
+
+- CI Performance Regression Gate (`servebench check`):
+  - Added deterministic regression gating between candidate benchmark runs and baseline runs.
+  - Compares matched concurrency/rate levels across TTFT p50, TPOT p50, token throughput, goodput,
+    and error rates.
+  - Returns exit code 1 on regressions exceeding tolerances, enabling drop-in GitHub Actions and
+    GitLab CI performance gating.
+- Stable Programmatic Python API:
+  - Created `src/servebench/api.py` and exported `servebench.benchmark`, `servebench.check_regression`,
+    and `servebench.compare` from top-level package.
+  - Allows running load tests, sweeps, and regression gates directly within Python scripts and notebooks.
+- Documentation & Multi-Engine Verification:
+  - Created complete MkDocs site with Material theme (`mkdocs.yml`) covering CLI reference, Python API,
+    metrics glossary, CI/CD guides, and serving engine tuning.
+  - Verified multi-engine compatibility matrix across Ollama, llama.cpp, vLLM, SGLang, and LM Studio.
+

@@ -24,6 +24,7 @@ from rich.table import Table
 from . import __version__, detect, system
 from . import quick as quick_mod
 from .capacity import find_capacity, passes
+from .check import CheckThresholds, evaluate_regression, print_check_report
 from .client import RequestSpec, send_request
 from .diagnosis import diagnose_run
 from .load import check_warmup, level_runner, make_session, run_sweep
@@ -829,6 +830,71 @@ def find_context_limit_cmd(
             console.print(f"[dim]Failed at next step due to: {fail_reason}[/dim]")
     else:
         console.print(f"[bold red]Failed even at initial {start} tokens: {fail_reason}[/bold red]")
+
+
+@app.command("check")
+def check_cmd(
+    candidate: Annotated[
+        Path,
+        typer.Argument(
+            help="Candidate run.json file to evaluate for regressions",
+            exists=True,
+            dir_okay=False,
+        ),
+    ],
+    baseline: Annotated[
+        Path,
+        typer.Option(
+            "--baseline",
+            "-b",
+            help="Baseline run.json file to compare against",
+            exists=True,
+            dir_okay=False,
+        ),
+    ],
+    max_ttft_pct: Annotated[
+        float,
+        typer.Option("--max-ttft-degradation-pct", help="Max allowed TTFT p50 latency increase %"),
+    ] = 15.0,
+    max_tpot_pct: Annotated[
+        float,
+        typer.Option("--max-tpot-degradation-pct", help="Max allowed TPOT p50 latency increase %"),
+    ] = 10.0,
+    max_throughput_pct: Annotated[
+        float,
+        typer.Option(
+            "--max-throughput-degradation-pct", help="Max allowed output throughput drop %"
+        ),
+    ] = 10.0,
+    max_goodput_pct: Annotated[
+        float,
+        typer.Option("--max-goodput-degradation-pct", help="Max allowed goodput drop %"),
+    ] = 10.0,
+    max_error_rate_pct: Annotated[
+        float,
+        typer.Option("--max-error-rate-pct", help="Max allowed request error rate %"),
+    ] = 1.0,
+) -> None:
+    """CI Performance Regression Gate: compare candidate run vs baseline and fail on regressions."""
+    try:
+        cand_run = load_run(candidate)
+        base_run = load_run(baseline)
+    except RunFileError as e:
+        raise typer.BadParameter(str(e)) from e
+
+    thresh = CheckThresholds(
+        max_ttft_pct=max_ttft_pct,
+        max_tpot_pct=max_tpot_pct,
+        max_throughput_pct=max_throughput_pct,
+        max_goodput_pct=max_goodput_pct,
+        max_error_rate_pct=max_error_rate_pct,
+    )
+
+    report = evaluate_regression(cand_run, base_run, thresh)
+    print_check_report(report, console)
+
+    if not report.passed:
+        raise typer.Exit(1)
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-10-19
+
+### Added
+- **CI Performance Regression Gate (`servebench check`)**:
+  - Gating command to evaluate candidate benchmark runs against established baseline runs.
+  - Automatically verifies regression thresholds on TTFT p50 latency (+%), TPOT p50 (+%), output token throughput (-%), goodput (-%), and error rate (%).
+  - Exits with status code `1` and rich failure diagnostics on violations, blocking pull requests or deployment pipelines.
+  - Exits with status code `0` on clean pass with full metric delta reporting.
+- **Stable Programmatic Python API**:
+  - Public Python API exported from top-level package: `servebench.benchmark`, `servebench.check_regression`, `servebench.compare`.
+  - Enables running benchmarks, tuning sweeps, and regression gates directly inside Python test suites, Jupyter notebooks, or evaluation pipelines.
+- **Comprehensive Documentation Site**:
+  - Complete MkDocs documentation site (`mkdocs.yml`) with Material theme.
+  - Dedicated guides: Overview (`index.md`), CLI reference (`cli-reference.md`), Python API (`python-api.md`), Metrics & Math glossary (`metrics-glossary.md`), CI/CD integration (`ci-cd-guide.md`), and Engine configuration (`engines.md`).
+- **Multi-Engine Serving Matrix**:
+  - Comprehensive engine compatibility verification and tuning guide for Ollama, llama.cpp, vLLM, SGLang, and LM Studio.
+
 ## [0.2.0] - 2026-10-19
 
 ### Added
