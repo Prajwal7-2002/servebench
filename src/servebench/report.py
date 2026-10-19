@@ -516,7 +516,7 @@ def print_run(run: RunResult, console: Console | None = None) -> None:
                 for ev in f.get("evidence", []):
                     console.print(f"    [dim]- {ev}[/dim]")
                 for rec in f.get("recommendations", []):
-                    console.print(f"    [green]→ Recommendation: {rec}[/green]")
+                    console.print(f"    [green]-> Recommendation: {rec}[/green]")
 
     if cap := capacity_text(run):
         console.print()
