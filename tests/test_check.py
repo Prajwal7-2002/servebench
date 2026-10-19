@@ -62,7 +62,7 @@ def _make_run(
             url="http://127.0.0.1:8000/v1", model="test-model", mode="concurrency", levels=[1.0]
         ),
         environment=Environment(
-            servebench_version="1.0.0",
+            servebench_version="1.0.1",
             python="3.12.0",
             platform="win32",
             timestamp="2026-10-19T00:00:00Z",

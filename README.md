@@ -13,19 +13,29 @@ No GPU or engine install is needed on the client: it is one async Python process
 
 ## Quickstart
 
-Uses [uv](https://docs.astral.sh/uv/) (or pipx/pip). PyPI release coming; for now, from a
-clone:
+### Installation
+
+Install from PyPI:
+```bash
+pip install servebench
+```
+Or with [uv](https://docs.astral.sh/uv/):
+```bash
+uv tool install servebench
+```
+
+### Instant Local Benchmark (`servebench quick`)
+
+`servebench quick` looks for Ollama, llama.cpp, LM Studio, vLLM, and SGLang on their usual ports,
+picks the loaded model, measures, and answers in plain language (~1 minute):
 
 ```bash
-uv tool install --from . servebench      # puts `servebench` on your PATH
-servebench quick                         # finds your local server, ~1 minute
+servebench quick
 ```
 
-`quick` looks for Ollama, llama.cpp, LM Studio, vLLM and SGLang on their usual ports, picks
-the loaded model, measures, and answers in plain language. A real run (Ollama with
-`OLLAMA_NUM_PARALLEL=4` on a laptop):
+A real run (Ollama with `OLLAMA_NUM_PARALLEL=4` on a laptop):
 
-```
+```text
 servebench quick: Ollama 0.35.1 at http://127.0.0.1:11434/v1, model qwen2.5:0.5b
 ...
 Ollama 0.35.1, qwen2.5:0.5b on AMD Ryzen 5 6600H, 15.3 GB RAM, NVIDIA GeForce RTX 3050 6GB Laptop GPU
@@ -39,7 +49,7 @@ queue: the server works on about 1 at once") and suggests the fix. Then
 `servebench share <run.json>` prints a Markdown table to paste into a post or issue and
 makes a result card:
 
-![servebench result card: 4 users at once, 203 tokens/s for one user, 43 ms to first token](results/quick-ollama-np4-card.png)
+![servebench result card: 4 users at once, 203 tokens/s for one user, 43 ms to first token](https://raw.githubusercontent.com/Prajwal7-2002/servebench/main/results/quick-ollama-np4-card.png)
 
 Full control:
 
@@ -84,14 +94,14 @@ report = servebench.check_regression("candidate.json", "baseline.json")
 assert report.passed, "Serving latency regressed!"
 ```
 
-No model at hand? `uv tool install --from . "servebench[mock]"` adds `servebench mock-server`,
-a stand-in server with set timings, so you can try every command without a GPU
+No model at hand? `uv tool install "servebench[mock]"` (or `pip install "servebench[mock]"`) adds
+`servebench mock-server`, a stand-in server with set timings, so you can try every command without a GPU
 ([see How it's tested](#how-its-tested)).
 
 ## Learn LLM inference by measuring it
 
 Want to understand how inference engines, batching, and queueing behave under the hood?
-Follow our hands-on guide: **[docs/learn-inference.md](docs/learn-inference.md)**.
+Follow our hands-on guide: **[docs/learn-inference.md](https://github.com/Prajwal7-2002/servebench/blob/main/docs/learn-inference.md)**.
 
 It walks through 7 reproducible experiments with Ollama:
 1. **Prefill scaling**: Why TTFT scales linearly with prompt length (~100 ms / 1k tokens).
@@ -110,7 +120,7 @@ Qwen2.5-0.5B (Q4_K_M) on Ollama 0.35.1, fully on an RTX 3050 6 GB laptop GPU. Sy
 prompts of 256 tokens, 128 output tokens, 64 requests per level, `find-capacity` with
 SLO TTFT < 500 ms and TPOT < 50 ms for 90% of requests. Only `OLLAMA_NUM_PARALLEL` changes.
 
-![TTFT, TPOT, throughput and E2E latency vs concurrent requests for 1, 4 and 8 Ollama slots](results/ollama-parallel_files/sweep.png)
+![TTFT, TPOT, throughput and E2E latency vs concurrent requests for 1, 4 and 8 Ollama slots](https://raw.githubusercontent.com/Prajwal7-2002/servebench/main/results/ollama-parallel_files/sweep.png)
 
 | Slots | Capacity (concurrent requests) | Completed req/s at capacity | Output tok/s | TTFT p50 / p99 | TPOT p50 | E2E p50 |
 |---|---|---|---|---|---|---|
@@ -126,7 +136,7 @@ SLO TTFT < 500 ms and TPOT < 50 ms for 90% of requests. Only `OLLAMA_NUM_PARALLE
 - So for this model and GPU, 4 slots maximise work done; 8 slots only help if you need more
   simultaneous users within the TTFT target and can accept slower answers.
 
-Full report with every level: [results/ollama-parallel.md](results/ollama-parallel.md).
+Full report with every level: [results/ollama-parallel.md](https://github.com/Prajwal7-2002/servebench/blob/main/results/ollama-parallel.md).
 Raw data: `results/ollama-np{1,4,8}.json` (every request's timings). Next: llama.cpp server
 on the same GPU, and vLLM on a free Kaggle T4.
 
@@ -251,7 +261,7 @@ tests then check servebench measures what was set:
 
 Example: a mock set to TTFT 80 ms, 15 ms per token and 15% slowdown per extra request in
 flight should show TPOT 15 × (1 + 0.15 × 15) ≈ 49 ms at 16 concurrent requests, and
-servebench measures 49 ms ([examples/report.md](examples/report.md)). The mock is a test
+servebench measures 49 ms ([examples/report.md](https://github.com/Prajwal7-2002/servebench/blob/main/examples/report.md)). The mock is a test
 tool only; every number under [Results](#results) comes from a real server.
 
 ## Limitations

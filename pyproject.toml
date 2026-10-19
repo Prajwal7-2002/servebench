@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "servebench"
-version = "1.0.0"
+version = "1.0.1"
 description = "Load-test any OpenAI-compatible LLM endpoint: TTFT, TPOT, ITL, throughput, goodput, charts."
 readme = "README.md"
 license = "Apache-2.0"
@@ -48,7 +48,10 @@ servebench = "servebench.cli:app"
 
 [project.urls]
 Homepage = "https://github.com/Prajwal7-2002/servebench"
+Documentation = "https://prajwal7-2002.github.io/servebench/"
+Repository = "https://github.com/Prajwal7-2002/servebench"
 Issues = "https://github.com/Prajwal7-2002/servebench/issues"
+Changelog = "https://github.com/Prajwal7-2002/servebench/blob/main/CHANGELOG.md"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
