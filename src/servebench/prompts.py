@@ -39,6 +39,7 @@ _WORDS = (
 class Prompt:
     text: str
     source: str = "synthetic"
+    output_len: int | None = None
 
 
 def cache_dir() -> Path:

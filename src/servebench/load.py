@@ -13,8 +13,10 @@ import aiohttp
 
 from .client import RequestSpec, send_request
 from .metrics import percentile, summarize, summarize_repeats
+from .prometheus import extract_standard_metrics, scrape_prometheus
 from .prompts import Prompt
 from .results import LevelResult, RequestResult
+from .telemetry import GpuSampler
 from .tokens import Counter
 
 
@@ -108,13 +110,14 @@ async def run_rate(
     max_concurrency: int | None = None,
     counter: Counter | None = None,
     duration: float | None = None,
+    burstiness: float = 1.0,
 ) -> tuple[list[RequestResult], float]:
-    """Open loop: requests arrive as a Poisson process, whether or not earlier ones finished.
+    """Open loop: requests arrive as a Poisson (or Gamma if burstiness != 1.0) process.
     With `duration`, arrivals stop at the deadline and the in-flight requests finish."""
     if duration and math.isinf(rate):
         raise ValueError("a duration needs a finite rate (rate=inf sends everything at once)")
     sem = asyncio.Semaphore(max_concurrency) if max_concurrency else None
-    rng = random.Random(seed)  # same sequence as poisson_delays(n, rate, seed)
+    rng = random.Random(seed)
     t0 = time.perf_counter()
     deadline = t0 + duration if duration else None
 
@@ -127,8 +130,13 @@ async def run_rate(
     tasks = []
     next_at = t0
     for i, p in enumerate(prompts):
-        # schedule against absolute times so sleep overshoot does not accumulate
-        next_at += 0.0 if math.isinf(rate) else rng.expovariate(rate)
+        if math.isinf(rate):
+            delay = 0.0
+        elif burstiness != 1.0 and burstiness > 0:
+            delay = rng.gammavariate(burstiness, 1.0 / (rate * burstiness))
+        else:
+            delay = rng.expovariate(rate)
+        next_at += delay
         if deadline is not None and next_at >= deadline:
             break
         wait = next_at - time.perf_counter()
@@ -152,11 +160,22 @@ async def run_level(
     slo_ttft_ms: float | None = None,
     slo_tpot_ms: float | None = None,
     counter: Counter | None = None,
+    burstiness: float = 1.0,
+    gpu_telemetry: bool = False,
+    gpu_index: int = 0,
+    metrics_url: str | None = None,
 ) -> LevelResult:
     if mode == "concurrency":
         conns = int(value)
     else:
         conns = max_concurrency  # None = unlimited
+
+    gpu_sampler = GpuSampler(gpu_index=gpu_index) if gpu_telemetry else None
+    if gpu_sampler:
+        gpu_sampler.start()
+
+    start_metrics = await scrape_prometheus(metrics_url) if metrics_url else None
+
     async with make_session(conns, timeout) as client:
         lag = LagMonitor()
         lag.start()
@@ -164,16 +183,27 @@ async def run_level(
             reqs, dur = await run_concurrency(client, spec, prompts, int(value), counter,
                                               duration)
         else:
-            reqs, dur = await run_rate(client, spec, prompts, value, seed, max_concurrency,
-                                       counter, duration)
+            reqs, dur = await run_rate(
+                client, spec, prompts, value, seed, max_concurrency, counter, duration,
+                burstiness=burstiness,
+            )
         lag_p99 = await lag.stop()
+
+    sm = summarize(reqs, dur, slo_ttft_ms, slo_tpot_ms)
+    gpu_summary = await gpu_sampler.stop(sm.output_throughput) if gpu_sampler else None
+    end_metrics = await scrape_prometheus(metrics_url) if metrics_url else None
+    prom_metrics = extract_standard_metrics(start_metrics, end_metrics) if end_metrics else None
+    sm.gpu_telemetry = gpu_summary
+
     return LevelResult(
         mode=mode,
         value=value,
         duration=dur,
         client_lag_p99_ms=lag_p99,
         requests=reqs,
-        summary=summarize(reqs, dur, slo_ttft_ms, slo_tpot_ms),
+        summary=sm,
+        gpu_telemetry=gpu_summary,
+        prometheus_metrics=prom_metrics,
     )
 
 
@@ -201,6 +231,10 @@ async def run_sweep(
     slo_tpot_ms: float | None = None,
     counter: Counter | None = None,
     on_level: Callable[[LevelResult], None] | None = None,
+    burstiness: float = 1.0,
+    gpu_telemetry: bool = False,
+    gpu_index: int = 0,
+    metrics_url: str | None = None,
 ) -> list[LevelResult]:
     """Run every level. `prompts_for(n, seed)` returns n prompts; each level gets fresh ones."""
     await check_warmup(spec, prompts_for, warmup_requests, timeout, seed)
@@ -208,6 +242,8 @@ async def run_sweep(
         spec, prompts_for, mode, num_requests, duration=duration, min_duration=min_duration,
         repeat=repeat, timeout=timeout, seed=seed, max_concurrency=max_concurrency,
         slo_ttft_ms=slo_ttft_ms, slo_tpot_ms=slo_tpot_ms, counter=counter, on_level=on_level,
+        burstiness=burstiness, gpu_telemetry=gpu_telemetry, gpu_index=gpu_index,
+        metrics_url=metrics_url,
     )
     return [await measure(value) for value in levels]
 
@@ -249,6 +285,10 @@ def level_runner(
     slo_tpot_ms: float | None = None,
     counter: Counter | None = None,
     on_level: Callable[[LevelResult], None] | None = None,
+    burstiness: float = 1.0,
+    gpu_telemetry: bool = False,
+    gpu_index: int = 0,
+    metrics_url: str | None = None,
 ) -> Callable[[float], Awaitable[LevelResult]]:
     """Return `measure(value)`, which runs one level; the k-th call uses seed + k * 1000.
 
@@ -274,7 +314,8 @@ def level_runner(
             trial = await run_level(
                 spec, prompts, mode, value, duration=effective_duration, timeout=timeout,
                 seed=trial_seed, max_concurrency=max_concurrency, slo_ttft_ms=slo_ttft_ms,
-                slo_tpot_ms=slo_tpot_ms, counter=counter,
+                slo_tpot_ms=slo_tpot_ms, counter=counter, burstiness=burstiness,
+                gpu_telemetry=gpu_telemetry, gpu_index=gpu_index, metrics_url=metrics_url,
             )
             trials.append(trial)
 
@@ -297,6 +338,15 @@ def level_runner(
             lags = [tr.client_lag_p99_ms for tr in trials if tr.client_lag_p99_ms is not None]
             combined_lag = max(lags) if lags else None
 
+            # Inherit GPU and Prometheus metrics from the trials
+            last_gpu = next(
+                (tr.gpu_telemetry for tr in reversed(trials) if tr.gpu_telemetry), None
+            )
+            last_prom = next(
+                (tr.prometheus_metrics for tr in reversed(trials) if tr.prometheus_metrics), None
+            )
+            combined_summary.gpu_telemetry = last_gpu
+
             level = LevelResult(
                 mode=mode,
                 value=value,
@@ -307,6 +357,8 @@ def level_runner(
                 repeat_count=repeat,
                 repeats=repeat_summaries,
                 repeat_metrics=repeat_metrics,
+                gpu_telemetry=last_gpu,
+                prometheus_metrics=last_prom,
             )
 
         if on_level:

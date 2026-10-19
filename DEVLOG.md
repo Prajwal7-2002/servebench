@@ -109,3 +109,30 @@
   - Added `--csv` and `--csv-requests` to export level summaries and per-request raw traces for
     pandas/Excel.
 
+## 2026-10-19: v0.2 Observability & Real-World Workloads
+
+- NVML GPU Telemetry:
+  - Pure Python integration using `nvidia-ml-py` with dynamic ctypes binding; no C build steps.
+  - Zero-fail fallback when non-NVIDIA GPU or when NVML driver is missing.
+  - Samples GPU utilization, VRAM usage, power draw (W), SM clocks, and temperature during load.
+  - Computes Tokens per Joule energy efficiency and total energy in Joules. Verified on host
+    NVIDIA GeForce RTX 3050 Laptop GPU (11.29 W idle, 56 °C, 765 MHz).
+- Server Timing Breakdown (P11):
+  - Extracts server-side prefill and decode timings directly from response streams (llama.cpp `timings`
+    and Ollama `prompt_eval_duration` / `eval_duration`).
+  - Isolates server queueing delay and network latency: `queue_network_overhead_ms = TTFT - server_prefill`.
+- Server Prometheus Scraper:
+  - Scrapes `/metrics` from vLLM, SGLang, llama.cpp, and TGI.
+  - Extracts gauge states (`num_requests_waiting`, `num_requests_running`, `gpu_cache_usage`) and
+    computes counter deltas (`prompt_tokens_total`, `generation_tokens_total`, `prefix_cache_hits`).
+- Automated Bottleneck Diagnosis Engine:
+  - Classifies performance bottlenecks across levels into: Queue/Slot-Bound, Memory-Bandwidth-Bound,
+    Compute-Bound, Client/Event-Loop-Bound, and Balanced.
+  - Generates clear evidence and actionable tuning recommendations.
+- Real-World Workloads:
+  - Added presets (`chat`, `rag`, `code`, `agent`) and distributions (`fixed`, `normal`, `lognormal`, `uniform`).
+  - Added Gamma bursty arrival generation (`--burstiness`) to simulate Poisson clustering.
+  - Added JSONL trace replay (`--trace`).
+  - Added shared prefix generation (`--shared-prefix-tokens`) to measure KV cache reuse.
+- Added `servebench compare-models` and `servebench find-context-limit` CLI commands.
+

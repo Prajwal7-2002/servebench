@@ -39,9 +39,10 @@ class RequestSpec:
         return {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
 
     def payload(self, prompt: Prompt) -> dict:
+        max_tok = prompt.output_len if prompt.output_len is not None else self.output_len
         body: dict = {
             "model": self.model,
-            "max_tokens": self.output_len,
+            "max_tokens": max_tok,
             "temperature": self.temperature,
             "stream": True,
             "stream_options": {"include_usage": True},
@@ -152,6 +153,18 @@ async def send_request(
                 if "error" in chunk:
                     res.ok, res.error = False, f"stream error: {str(chunk['error'])[:200]}"
                     return res
+                if "timings" in chunk and isinstance(chunk["timings"], dict):
+                    t_info = chunk["timings"]
+                    if t_info.get("prompt_ms") is not None:
+                        res.server_prefill_ms = float(t_info["prompt_ms"])
+                    if t_info.get("predicted_ms") is not None:
+                        res.server_decode_ms = float(t_info["predicted_ms"])
+                if "prompt_eval_duration" in chunk and chunk["prompt_eval_duration"] is not None:
+                    res.server_prefill_ms = round(
+                        float(chunk["prompt_eval_duration"]) / 1_000_000.0, 2
+                    )
+                if "eval_duration" in chunk and chunk["eval_duration"] is not None:
+                    res.server_decode_ms = round(float(chunk["eval_duration"]) / 1_000_000.0, 2)
                 if chunk.get("usage"):
                     usage = chunk["usage"]
                 finish_reason = _finish_reason(chunk) or finish_reason
@@ -193,6 +206,10 @@ async def send_request(
         res.ok, res.error = False, "empty response"
         return res
     res.ttft = res.chunk_times[0]
+    if res.ttft is not None and res.server_prefill_ms is not None:
+        res.queue_network_overhead_ms = max(
+            0.0, round((res.ttft * 1000.0) - res.server_prefill_ms, 2)
+        )
     if usage and usage.get("completion_tokens"):
         res.output_tokens = int(usage["completion_tokens"])
         res.prompt_tokens = usage.get("prompt_tokens")

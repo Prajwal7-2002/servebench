@@ -81,6 +81,8 @@ def to_csv(runs: list[RunResult]) -> str:
         "ttft_p50_ms", "ttft_p50_std_ms", "ttft_p90_ms", "ttft_p99_ms",
         "tpot_p50_ms", "tpot_p50_std_ms", "tpot_p90_ms", "tpot_p99_ms",
         "itl_p50_ms", "e2e_p50_s", "goodput", "slo_attainment_pct",
+        "server_prefill_p50_ms", "server_decode_p50_ms", "queue_overhead_p50_ms",
+        "gpu_util_avg", "vram_used_avg_mb", "power_avg_w", "tokens_per_joule",
     ])
     for run in runs:
         for lv in run.levels:
@@ -106,6 +108,7 @@ def to_csv(runs: list[RunResult]) -> str:
                 else ""
             )
 
+            gt = lv.gpu_telemetry
             writer.writerow([
                 run.label, lv.label, lv.mode, lv.value, lv.repeat_count, s.completed, s.failed,
                 _val(s.request_throughput, fmt="{:.2f}"), req_std,
@@ -121,6 +124,13 @@ def to_csv(runs: list[RunResult]) -> str:
                 _val(s.e2e.p50, fmt="{:.2f}"),
                 _val(s.goodput, fmt="{:.2f}"),
                 _val(s.slo_attainment, scale=100.0, fmt="{:.1f}"),
+                _val(s.server_prefill_ms.p50, fmt="{:.1f}"),
+                _val(s.server_decode_ms.p50, fmt="{:.1f}"),
+                _val(s.queue_network_overhead_ms.p50, fmt="{:.1f}"),
+                _val(gt.avg_gpu_util, fmt="{:.1f}") if gt else "",
+                _val(gt.avg_vram_used_mb, fmt="{:.1f}") if gt else "",
+                _val(gt.avg_power_w, fmt="{:.2f}") if gt else "",
+                _val(gt.tokens_per_joule, fmt="{:.2f}") if gt else "",
             ])
     return buf.getvalue()
 
@@ -138,6 +148,7 @@ def write_requests_csv(run: RunResult, path: str | Path) -> None:
     writer.writerow([
         "level", "index", "ok", "error", "start_s", "ttft_ms", "e2e_s",
         "output_tokens", "prompt_tokens", "tpot_ms", "chunks", "token_source",
+        "server_prefill_ms", "server_decode_ms", "queue_network_overhead_ms",
     ])
     for lv in run.levels:
         for r in lv.requests:
@@ -149,6 +160,11 @@ def write_requests_csv(run: RunResult, path: str | Path) -> None:
                 r.output_tokens, r.prompt_tokens or "",
                 f"{r.tpot * 1000:.2f}" if r.tpot is not None else "",
                 r.num_chunks, r.token_source,
+                f"{r.server_prefill_ms:.2f}" if r.server_prefill_ms is not None else "",
+                f"{r.server_decode_ms:.2f}" if r.server_decode_ms is not None else "",
+                f"{r.queue_network_overhead_ms:.2f}"
+                if r.queue_network_overhead_ms is not None
+                else "",
             ])
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -335,7 +351,175 @@ def print_run(run: RunResult, console: Console | None = None) -> None:
         row = level_row(lv)
         table.add_row(*(v for i, v in enumerate(row) if i not in _TERMINAL_SKIP))
     console.print(table)
+
+    # Server-Side Timings breakdown if present
+    timing_levels = [
+        lv for lv in run.levels
+        if (
+            lv.summary.server_prefill_ms.count > 0
+            or lv.summary.queue_network_overhead_ms.count > 0
+        )
+    ]
+    if timing_levels:
+        t_table = Table(
+            title="Server-Side Timings Breakdown (P11)",
+            box=None,
+            pad_edge=False,
+            header_style="bold underline",
+        )
+        t_table.add_column("load", justify="left")
+        t_table.add_column("Client TTFT\n(p50 ms)", justify="right")
+        t_table.add_column("Server Prefill\n(p50 ms)", justify="right")
+        t_table.add_column("Server Decode\n(p50 ms)", justify="right")
+        t_table.add_column("Queue / Net\n(p50 ms)", justify="right")
+        t_table.add_column("Queue Share\n(%)", justify="right")
+        for lv in timing_levels:
+            s = lv.summary
+            c_ttft = f"{s.ttft.p50 * 1000:.1f}" if s.ttft.p50 is not None else "-"
+            s_pre = (
+                f"{s.server_prefill_ms.p50:.1f}"
+                if s.server_prefill_ms.p50 is not None
+                else "-"
+            )
+            s_dec = (
+                f"{s.server_decode_ms.p50:.1f}"
+                if s.server_decode_ms.p50 is not None
+                else "-"
+            )
+            q_ovh = (
+                f"{s.queue_network_overhead_ms.p50:.1f}"
+                if s.queue_network_overhead_ms.p50 is not None
+                else "-"
+            )
+            if s.ttft.p50 and s.queue_network_overhead_ms.p50 is not None and s.ttft.p50 > 0:
+                q_pct = (
+                    f"{(s.queue_network_overhead_ms.p50 / (s.ttft.p50 * 1000.0)) * 100:.0f}%"
+                )
+            else:
+                q_pct = "-"
+            t_table.add_row(lv.label, c_ttft, s_pre, s_dec, q_ovh, q_pct)
+        console.print()
+        console.print(t_table)
+
+    # GPU Telemetry table if present
+    gpu_levels = [lv for lv in run.levels if lv.gpu_telemetry]
+    if gpu_levels:
+        gpu_table = Table(
+            title="GPU Telemetry & Energy Efficiency",
+            box=None,
+            pad_edge=False,
+            header_style="bold underline",
+        )
+        gpu_table.add_column("load", justify="left")
+        gpu_table.add_column("GPU Util\n(avg/peak)", justify="right")
+        gpu_table.add_column("VRAM MB\n(avg/peak)", justify="right")
+        gpu_table.add_column("Power W\n(avg/peak)", justify="right")
+        gpu_table.add_column("Temp\n(avg/peak)", justify="right")
+        gpu_table.add_column("Tok/Joule\n(efficiency)", justify="right")
+        for lv in gpu_levels:
+            gt = lv.gpu_telemetry
+            if gt:
+                u_str = (
+                    f"{gt.avg_gpu_util:.0f}%/{gt.peak_gpu_util:.0f}%"
+                    if gt.avg_gpu_util is not None
+                    else "-"
+                )
+                vr_str = (
+                    f"{gt.avg_vram_used_mb:.0f}/{gt.peak_vram_used_mb:.0f}"
+                    if gt.avg_vram_used_mb is not None
+                    else "-"
+                )
+                p_str = (
+                    f"{gt.avg_power_w:.1f}W/{gt.peak_power_w:.1f}W"
+                    if gt.avg_power_w is not None
+                    else "-"
+                )
+                t_str = (
+                    f"{gt.avg_temp_c:.0f}C/{gt.peak_temp_c:.0f}C"
+                    if gt.avg_temp_c is not None
+                    else "-"
+                )
+                eff_str = (
+                    f"{gt.tokens_per_joule:.2f}"
+                    if gt.tokens_per_joule is not None
+                    else "-"
+                )
+                gpu_table.add_row(lv.label, u_str, vr_str, p_str, t_str, eff_str)
+        console.print()
+        console.print(gpu_table)
+
+    # Prometheus server metrics if present
+    prom_levels = [lv for lv in run.levels if lv.prometheus_metrics]
+    if prom_levels:
+        p_table = Table(
+            title="Server Prometheus Telemetry",
+            box=None,
+            pad_edge=False,
+            header_style="bold underline",
+        )
+        p_table.add_column("load", justify="left")
+        p_table.add_column("Waiting Reqs", justify="right")
+        p_table.add_column("Running Reqs", justify="right")
+        p_table.add_column("KV Cache Util", justify="right")
+        p_table.add_column("Prompt Tok Delta", justify="right")
+        p_table.add_column("Gen Tok Delta", justify="right")
+        for lv in prom_levels:
+            pm = lv.prometheus_metrics or {}
+            w = f"{pm.get('num_requests_waiting', 0):.0f}"
+            r = f"{pm.get('num_requests_running', 0):.0f}"
+            kv = (
+                f"{pm.get('gpu_cache_usage', 0) * 100:.1f}%"
+                if "gpu_cache_usage" in pm
+                else "-"
+            )
+            pt = (
+                f"{pm.get('prompt_tokens_total', 0):.0f}"
+                if "prompt_tokens_total" in pm
+                else "-"
+            )
+            gt = (
+                f"{pm.get('generation_tokens_total', 0):.0f}"
+                if "generation_tokens_total" in pm
+                else "-"
+            )
+            p_table.add_row(lv.label, w, r, kv, pt, gt)
+        console.print()
+        console.print(p_table)
+
+    # Bottleneck Diagnosis if present
+    if run.bottleneck_diagnosis:
+        bd = run.bottleneck_diagnosis
+        findings = bd.get("findings", [])
+        primary = bd.get("primary_bottleneck", "Balanced")
+        health = bd.get("overall_health", "good")
+        health_color = (
+            "green"
+            if health in ("excellent", "good")
+            else ("yellow" if health == "degraded" else "red")
+        )
+        console.print()
+        console.print(
+            f"[bold {health_color}]Bottleneck Diagnosis: {primary}[/bold {health_color}] "
+            f"(Health: {health})"
+        )
+        for f in findings:
+            sev = f.get("severity", "info")
+            if f.get("category") == "Balanced":
+                console.print(f"  [dim]• {f.get('headline')}[/dim]")
+            else:
+                c_tag = (
+                    "bold red"
+                    if sev == "high"
+                    else ("yellow" if sev == "medium" else "cyan")
+                )
+                console.print(f"  [{c_tag}]• {f.get('headline')}[/{c_tag}]")
+                for ev in f.get("evidence", []):
+                    console.print(f"    [dim]- {ev}[/dim]")
+                for rec in f.get("recommendations", []):
+                    console.print(f"    [green]→ Recommendation: {rec}[/green]")
+
     if cap := capacity_text(run):
+        console.print()
         console.print(f"[bold]{cap}[/bold]")
     if run.levels:
         console.print(f"[dim]Latencies in ms unless noted. Goodput = req/s meeting "
@@ -600,6 +784,28 @@ def html_report(runs: list[RunResult]) -> str:
         parts.append(f"<h2>{esc(run.label)}</h2>")
         if cap := capacity_text(run):
             parts.append(f"<p class='cap'>{esc(cap)}</p>")
+
+        if run.bottleneck_diagnosis:
+            bd = run.bottleneck_diagnosis
+            primary = esc(bd.get("primary_bottleneck", "Balanced"))
+            health = esc(bd.get("overall_health", "good"))
+            parts.append(
+                "<div style='margin:16px 0; padding:12px 16px; background:var(--card); "
+                "border-radius:6px;'>"
+            )
+            parts.append(
+                f"<strong>Bottleneck Diagnosis: {primary}</strong> (Health: {health})"
+            )
+            for f in bd.get("findings", []):
+                head = esc(f.get("headline", ""))
+                parts.append(f"<p style='margin:4px 0;'>• {head}</p>")
+                for rec in f.get("recommendations", []):
+                    parts.append(
+                        "<p style='margin:2px 0 2px 16px; color:#1baf7a; font-size:13px;'>"
+                        f"→ Recommendation: {esc(rec)}</p>"
+                    )
+            parts.append("</div>")
+
         parts.append("<div class='scroll'><table class='cfg'>")
         parts += [f"<tr><td>{esc(k)}</td><td>{esc(v)}</td></tr>" for k, v in _config_rows(run)]
         parts.append("</table></div><div class='scroll'><table><tr>")
@@ -608,6 +814,85 @@ def html_report(runs: list[RunResult]) -> str:
         for lv in run.levels:
             parts.append("<tr>" + "".join(f"<td>{esc(v)}</td>" for v in level_row(lv)) + "</tr>")
         parts.append("</table></div>")
+
+        gpu_levels = [lv for lv in run.levels if lv.gpu_telemetry]
+        if gpu_levels:
+            parts.append(
+                "<h3>GPU Telemetry & Energy Efficiency</h3><div class='scroll'><table><tr>"
+            )
+            parts.append(
+                "<th>load</th><th>GPU Util</th><th>VRAM MB</th>"
+                "<th>Power W</th><th>Temp</th><th>Tok/Joule</th></tr>"
+            )
+            for lv in gpu_levels:
+                gt = lv.gpu_telemetry
+                if gt:
+                    u_s = (
+                        f"{gt.avg_gpu_util:.0f}% / {gt.peak_gpu_util:.0f}%"
+                        if gt.avg_gpu_util is not None
+                        else "-"
+                    )
+                    v_s = (
+                        f"{gt.avg_vram_used_mb:.0f} / {gt.peak_vram_used_mb:.0f}"
+                        if gt.avg_vram_used_mb is not None
+                        else "-"
+                    )
+                    p_s = (
+                        f"{gt.avg_power_w:.1f}W / {gt.peak_power_w:.1f}W"
+                        if gt.avg_power_w is not None
+                        else "-"
+                    )
+                    t_s = f"{gt.avg_temp_c:.0f}°C" if gt.avg_temp_c is not None else "-"
+                    e_s = (
+                        f"{gt.tokens_per_joule:.2f}"
+                        if gt.tokens_per_joule is not None
+                        else "-"
+                    )
+                    parts.append(
+                        f"<tr><td>{esc(lv.label)}</td><td>{u_s}</td><td>{v_s}</td>"
+                        f"<td>{p_s}</td><td>{t_s}</td><td>{e_s}</td></tr>"
+                    )
+            parts.append("</table></div>")
+
+        timing_levels = [
+            lv for lv in run.levels
+            if (
+                lv.summary.server_prefill_ms.count > 0
+                or lv.summary.queue_network_overhead_ms.count > 0
+            )
+        ]
+        if timing_levels:
+            parts.append(
+                "<h3>Server-Side Timings Breakdown</h3><div class='scroll'><table><tr>"
+            )
+            parts.append(
+                "<th>load</th><th>Client TTFT (p50 ms)</th><th>Server Prefill (p50 ms)</th>"
+                "<th>Server Decode (p50 ms)</th><th>Queue / Net (p50 ms)</th></tr>"
+            )
+            for lv in timing_levels:
+                s = lv.summary
+                c_ttft = f"{s.ttft.p50 * 1000:.1f}" if s.ttft.p50 is not None else "-"
+                s_pre = (
+                    f"{s.server_prefill_ms.p50:.1f}"
+                    if s.server_prefill_ms.p50 is not None
+                    else "-"
+                )
+                s_dec = (
+                    f"{s.server_decode_ms.p50:.1f}"
+                    if s.server_decode_ms.p50 is not None
+                    else "-"
+                )
+                q_ovh = (
+                    f"{s.queue_network_overhead_ms.p50:.1f}"
+                    if s.queue_network_overhead_ms.p50 is not None
+                    else "-"
+                )
+                parts.append(
+                    f"<tr><td>{esc(lv.label)}</td><td>{c_ttft}</td><td>{s_pre}</td>"
+                    f"<td>{s_dec}</td><td>{q_ovh}</td></tr>"
+                )
+            parts.append("</table></div>")
+
         if run.levels:
             parts.append(f"<p class='note'>Latencies in ms unless noted. Goodput = req/s "
                          f"meeting {esc(slo_text(run.levels[0].summary))}.</p>")

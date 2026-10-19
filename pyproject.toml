@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "servebench"
-version = "0.1.0"
+version = "0.2.0"
 description = "Load-test any OpenAI-compatible LLM endpoint: TTFT, TPOT, ITL, throughput, goodput, charts."
 readme = "README.md"
 license = "Apache-2.0"
@@ -25,6 +25,7 @@ dependencies = [
     "matplotlib>=3.8",
     "aiohttp>=3.10",
     "pyyaml>=6.0.3",
+    "nvidia-ml-py>=13.615.71",
 ]
 
 [project.optional-dependencies]

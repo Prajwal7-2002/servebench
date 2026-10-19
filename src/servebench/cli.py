@@ -19,12 +19,15 @@ from urllib.parse import urlparse
 
 import typer
 from rich.console import Console
+from rich.table import Table
 
 from . import __version__, detect, system
 from . import quick as quick_mod
 from .capacity import find_capacity, passes
-from .client import RequestSpec
-from .load import check_warmup, level_runner, run_sweep
+from .client import RequestSpec, send_request
+from .diagnosis import diagnose_run
+from .load import check_warmup, level_runner, make_session, run_sweep
+from .prometheus import resolve_metrics_url
 from .prompts import Prompt, load_prompts
 from .report import (
     RunFileError,
@@ -38,6 +41,7 @@ from .report import (
 )
 from .results import Environment, LevelResult, RunConfig, RunResult
 from .tokens import Counter, make_counter
+from .workloads import PRESETS, generate_workload_requests, load_trace_file
 
 app = typer.Typer(add_completion=False, no_args_is_help=True,
                   help="Load-test any OpenAI-compatible LLM endpoint.")
@@ -125,6 +129,7 @@ class Setup:
     counter: Counter | None
     prompts_for: Callable[[int, int], list[Prompt]]
     server: detect.Server | None = None
+    metrics_url: str | None = None
 
     def after_run(self) -> None:
         """Ask the server about the model now that it's loaded (e.g. Ollama: on GPU?)."""
@@ -173,7 +178,10 @@ def load_config_file(path: Path) -> dict:
 def _setup(*, url, model, mode, levels, max_concurrency, num_requests, duration,
            min_duration=None, repeat=1, input_len, output_len,
            prompts, endpoint, ignore_eos, temperature, warmup, seed, timeout, slo_ttft_ms,
-           slo_tpot_ms, tokenizer, api_key, notes) -> Setup:
+           slo_tpot_ms, tokenizer, api_key, notes,
+           preset=None, input_dist=None, output_dist=None, arrival_dist="poisson",
+           burstiness=1.0, shared_prefix_tokens=None, trace=None, gpu_telemetry=True,
+           scrape_metrics=None) -> Setup:
     if endpoint not in ("chat", "completions"):
         raise typer.BadParameter("--endpoint must be 'chat' or 'completions'")
     if duration is not None and duration <= 0:
@@ -188,6 +196,19 @@ def _setup(*, url, model, mode, levels, max_concurrency, num_requests, duration,
         # prefill. Measured: TTFT 43 ms fresh vs 20 ms repeated on Ollama.
         seed = random.SystemRandom().randrange(1, 2**31)
         console.print(f"[dim]seed {seed} (--seed {seed} repeats these exact prompts)[/dim]")
+
+    if preset:
+        preset_key = preset.lower()
+        if preset_key not in PRESETS:
+            raise typer.BadParameter(
+                f"--preset must be one of {list(PRESETS.keys())}, got {preset!r}"
+            )
+        p_info = PRESETS[preset_key]
+        if input_len == 256:  # default was not explicitly changed
+            input_len = p_info["input_len"]
+        if output_len == 128:  # default was not explicitly changed
+            output_len = p_info["output_len"]
+
     cfg = RunConfig(
         url=url, model=model, endpoint=endpoint, prompts=prompts, input_len=input_len,
         output_len=output_len, mode=mode, levels=levels, max_concurrency=max_concurrency,
@@ -196,6 +217,12 @@ def _setup(*, url, model, mode, levels, max_concurrency, num_requests, duration,
         ignore_eos=ignore_eos,
         temperature=temperature, timeout=timeout, slo_ttft_ms=slo_ttft_ms,
         slo_tpot_ms=slo_tpot_ms, tokenizer=tokenizer,
+        preset=preset, input_dist=input_dist, output_dist=output_dist,
+        arrival_dist=arrival_dist, burstiness=burstiness,
+        shared_prefix_tokens=shared_prefix_tokens,
+        trace=str(trace) if trace else None,
+        gpu_telemetry=gpu_telemetry,
+        scrape_metrics=scrape_metrics,
     )
     server = detect.identify(url)
     host = urlparse(url).hostname or ""
@@ -221,10 +248,23 @@ def _setup(*, url, model, mode, levels, max_concurrency, num_requests, duration,
         console.print(f"[yellow]! The server does not list model '{model}'. It has: "
                       f"{', '.join(env.server_models)}. For Ollama: ollama pull {model}[/yellow]")
 
-    def prompts_for(n: int, s: int) -> list[Prompt]:
-        return load_prompts(prompts, n, input_len, s, tokenizer)
+    if trace:
+        def prompts_for(n: int, s: int) -> list[Prompt]:
+            return load_trace_file(trace, n)
+    elif input_dist or output_dist or shared_prefix_tokens:
+        def prompts_for(n: int, s: int) -> list[Prompt]:
+            return generate_workload_requests(
+                n, input_len, output_len, input_dist=input_dist, output_dist=output_dist,
+                shared_prefix_tokens=shared_prefix_tokens, seed=s, tokenizer=tokenizer,
+            )
+    else:
+        def prompts_for(n: int, s: int) -> list[Prompt]:
+            return load_prompts(prompts, n, input_len, s, tokenizer)
 
-    return Setup(cfg, env, spec, make_counter(tokenizer), prompts_for, server)
+    metrics_url = resolve_metrics_url(url, scrape_metrics)
+    return Setup(
+        cfg, env, spec, make_counter(tokenizer), prompts_for, server, metrics_url=metrics_url
+    )
 
 
 def _print_level(lv: LevelResult, verdict: str = "") -> None:
@@ -290,6 +330,26 @@ def run(
     label: Label = None,
     notes: Notes = None,
     out: Out = None,
+    preset: Annotated[str | None, typer.Option(
+        help="Workload preset: 'chat', 'rag', 'code', 'agent'")] = None,
+    input_dist: Annotated[str | None, typer.Option(
+        help="Input length distribution: 'fixed', 'normal', 'lognormal', 'uniform'")] = None,
+    output_dist: Annotated[str | None, typer.Option(
+        help="Output length distribution: 'fixed', 'normal', 'lognormal', 'uniform'")] = None,
+    arrival_dist: Annotated[str, typer.Option(
+        help="Arrival distribution: 'poisson' or 'gamma'")] = "poisson",
+    burstiness: Annotated[float, typer.Option(
+        help="Gamma shape parameter for arrival bursts (<1.0 is bursty)")] = 1.0,
+    shared_prefix_tokens: Annotated[int | None, typer.Option(
+        help="Tokens in shared prefix to test prefix caching")] = None,
+    trace: Annotated[Path | None, typer.Option(
+        help="Replay requests from a JSONL trace file")] = None,
+    gpu: Annotated[bool, typer.Option(
+        "--gpu/--no-gpu", help="Capture GPU telemetry via NVML")] = True,
+    gpu_index: Annotated[int, typer.Option(
+        help="NVIDIA GPU device index to monitor")] = 0,
+    scrape_metrics: Annotated[str | None, typer.Option(
+        help="Prometheus /metrics endpoint URL or 'auto'")] = None,
 ) -> None:
     """Benchmark an endpoint over a sweep of load levels."""
     if config:
@@ -325,6 +385,17 @@ def run(
         api_key = _get("api_key", api_key)
         label = _get("label", label)
         notes = _get("notes", notes)
+        preset = _get("preset", preset)
+        input_dist = _get("input_dist", input_dist)
+        output_dist = _get("output_dist", output_dist)
+        arrival_dist = _get("arrival_dist", arrival_dist)
+        burstiness = _get("burstiness", burstiness)
+        shared_prefix_tokens = _get("shared_prefix_tokens", shared_prefix_tokens)
+        if trace is None and "trace" in cfg_data:
+            trace = Path(cfg_data["trace"])
+        gpu = _get("gpu", gpu)
+        gpu_index = _get("gpu_index", gpu_index)
+        scrape_metrics = _get("scrape_metrics", scrape_metrics)
         if out is None and "out" in cfg_data:
             out = Path(cfg_data["out"])
         if csv is None and "csv" in cfg_data:
@@ -361,7 +432,10 @@ def run(
                 prompts=prompts, endpoint=endpoint, ignore_eos=ignore_eos,
                 temperature=temperature, warmup=warmup, seed=seed, timeout=timeout,
                 slo_ttft_ms=slo_ttft_ms, slo_tpot_ms=slo_tpot_ms, tokenizer=tokenizer,
-                api_key=api_key, notes=notes)
+                api_key=api_key, notes=notes, preset=preset, input_dist=input_dist,
+                output_dist=output_dist, arrival_dist=arrival_dist, burstiness=burstiness,
+                shared_prefix_tokens=shared_prefix_tokens, trace=trace, gpu_telemetry=gpu,
+                scrape_metrics=scrape_metrics)
 
     rep_txt = f" (x{repeat} repeats)" if repeat > 1 else ""
     console.print(
@@ -374,13 +448,25 @@ def run(
             timeout=timeout, seed=st.cfg.seed, max_concurrency=max_concurrency,
             slo_ttft_ms=slo_ttft_ms, slo_tpot_ms=slo_tpot_ms, counter=st.counter,
             on_level=_print_level,
+            burstiness=burstiness, gpu_telemetry=gpu, gpu_index=gpu_index,
+            metrics_url=st.metrics_url,
         ))
     except RuntimeError as e:
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(1) from e
     st.after_run()
-    _finish(RunResult(label=label or (out.stem if out else model), config=st.cfg,
-                      environment=st.env, levels=levels_out), out, csv, csv_requests)
+    run_res = RunResult(
+        label=label or (out.stem if out else model),
+        config=st.cfg,
+        environment=st.env,
+        levels=levels_out,
+    )
+    gpus_with_samples = [lv.gpu_telemetry for lv in levels_out if lv.gpu_telemetry]
+    if gpus_with_samples:
+        run_res.gpu_telemetry = gpus_with_samples[-1]
+    diag = diagnose_run(run_res)
+    run_res.bottleneck_diagnosis = diag.model_dump()
+    _finish(run_res, out, csv, csv_requests)
 
 
 @app.command("find-capacity")
@@ -635,6 +721,114 @@ def mock_server(
                   f"TTFT {ttft_ms} ms, ITL {itl_ms} ms. Ctrl+C to stop.")
     serve(MockConfig(ttft=ttft_ms / 1000, itl=itl_ms / 1000, tokens_per_chunk=tokens_per_chunk,
                      slowdown=slowdown), host=host, port=port)
+
+
+@app.command("compare-models")
+def compare_models_cmd(
+    files: Annotated[list[Path], typer.Argument(help="Two or more run.json files to compare")],
+) -> None:
+    """Compare multiple models side-by-side on latency, throughput, and energy efficiency."""
+    if len(files) < 2:
+        raise typer.BadParameter("Provide at least two run.json files to compare.")
+    runs = [load_run(f) for f in files]
+
+    tbl = Table(
+        title="Model Serving Comparison",
+        box=None,
+        pad_edge=False,
+        header_style="bold underline",
+    )
+    tbl.add_column("Model / Label", justify="left")
+    tbl.add_column("Engine", justify="left")
+    tbl.add_column("Peak Tok/s", justify="right")
+    tbl.add_column("TTFT p50 (ms)", justify="right")
+    tbl.add_column("TPOT p50 (ms)", justify="right")
+    tbl.add_column("Goodput", justify="right")
+    tbl.add_column("Avg Power (W)", justify="right")
+    tbl.add_column("Tok/Joule", justify="right")
+    tbl.add_column("Primary Bottleneck", justify="left")
+
+    base_tok_s = None
+    for r in runs:
+        engine = r.environment.engine or "-"
+        peak_lv = max(r.levels, key=lambda lv: lv.summary.output_throughput) if r.levels else None
+        if not peak_lv:
+            continue
+        sm = peak_lv.summary
+        tok_s = sm.output_throughput
+        if base_tok_s is None:
+            base_tok_s = tok_s
+            tok_s_str = f"{tok_s:.1f}"
+        else:
+            diff = ((tok_s - base_tok_s) / base_tok_s) * 100.0 if base_tok_s > 0 else 0.0
+            sign = "+" if diff >= 0 else ""
+            tok_s_str = f"{tok_s:.1f} ({sign}{diff:.0f}%)"
+
+        ttft_str = f"{sm.ttft.p50 * 1000:.0f}" if sm.ttft.p50 is not None else "-"
+        tpot_str = f"{sm.tpot.p50 * 1000:.1f}" if sm.tpot.p50 is not None else "-"
+        good_str = f"{sm.goodput:.1f}"
+
+        gt = peak_lv.gpu_telemetry or r.gpu_telemetry
+        pow_str = f"{gt.avg_power_w:.1f}" if gt and gt.avg_power_w is not None else "-"
+        eff_str = f"{gt.tokens_per_joule:.2f}" if gt and gt.tokens_per_joule is not None else "-"
+
+        bn = (
+            r.bottleneck_diagnosis.get("primary_bottleneck", "-")
+            if r.bottleneck_diagnosis
+            else "-"
+        )
+        tbl.add_row(r.label, engine, tok_s_str, ttft_str, tpot_str, good_str, pow_str, eff_str, bn)
+
+    console.print(tbl)
+
+
+@app.command("find-context-limit")
+def find_context_limit_cmd(
+    url: Url,
+    model: Model,
+    start: Annotated[int, typer.Option(help="Starting prompt length in tokens")] = 512,
+    max_len: Annotated[int, typer.Option("--max", help="Maximum prompt length to test")] = 32768,
+    output_len: OutputLen = 16,
+    timeout: Timeout = 60.0,
+    api_key: ApiKey = None,
+) -> None:
+    """Find maximum working context window before server OOM, context error, or timeout."""
+    spec = RequestSpec(url=url, model=model, output_len=output_len, api_key=api_key)
+    lengths = []
+    curr = start
+    while curr <= max_len:
+        lengths.append(curr)
+        curr *= 2
+
+    console.print(f"Finding context limit for {model} @ {url} (lengths: {lengths})...")
+
+    async def _test_limits():
+        last_pass = None
+        fail_reason = None
+        for in_len in lengths:
+            p = Prompt(" ".join(["test"] * in_len), "synthetic")
+            async with make_session(1, timeout) as sess:
+                res = await send_request(sess, spec, p)
+                if res.ok:
+                    last_pass = in_len
+                    ttft_ms = (res.ttft * 1000.0) if res.ttft else 0.0
+                    console.print(
+                        f"  [green]✓ {in_len:>5} tokens: ok (TTFT {ttft_ms:.0f} ms)[/green]"
+                    )
+                else:
+                    fail_reason = res.error
+                    console.print(f"  [red]✗ {in_len:>5} tokens: failed ({res.error})[/red]")
+                    break
+        return last_pass, fail_reason
+
+    last_pass, fail_reason = asyncio.run(_test_limits())
+    console.print()
+    if last_pass:
+        console.print(f"[bold green]Maximum context supported: >= {last_pass} tokens[/bold green]")
+        if fail_reason:
+            console.print(f"[dim]Failed at next step due to: {fail_reason}[/dim]")
+    else:
+        console.print(f"[bold red]Failed even at initial {start} tokens: {fail_reason}[/bold red]")
 
 
 if __name__ == "__main__":  # pragma: no cover

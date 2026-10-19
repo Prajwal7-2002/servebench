@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from .telemetry import GpuTelemetrySummary
 
 TokenSource = Literal["usage", "tokenizer", "chunks"]
 
@@ -29,6 +31,15 @@ class RequestResult(BaseModel):
     answer_start: float | None = Field(
         None, description="Send -> first answer (non-reasoning) chunk; equals TTFT for "
         "models that don't stream reasoning")
+    server_prefill_ms: float | None = Field(
+        None, description="Time server spent on prompt prefill evaluation in ms"
+    )
+    server_decode_ms: float | None = Field(
+        None, description="Time server spent on token generation/decode in ms"
+    )
+    queue_network_overhead_ms: float | None = Field(
+        None, description="Client TTFT - Server Prefill: request queueing delay + network RTT in ms"
+    )
 
     @property
     def num_chunks(self) -> int:
@@ -104,6 +115,19 @@ class Summary(BaseModel):
         None, description="Share of content chunks that were reasoning tokens")
     answer_start: Stats = Field(default_factory=Stats,
                                 description="Send -> first answer token (after reasoning)")
+    server_prefill_ms: Stats = Field(
+        default_factory=Stats, description="Server prompt evaluation/prefill time in ms"
+    )
+    server_decode_ms: Stats = Field(
+        default_factory=Stats, description="Server token generation/decode time in ms"
+    )
+    queue_network_overhead_ms: Stats = Field(
+        default_factory=Stats,
+        description="Client TTFT minus server prefill in ms (queue delay + network RTT)",
+    )
+    gpu_telemetry: GpuTelemetrySummary | None = Field(
+        None, description="GPU metrics collected during this run/level"
+    )
 
 
 class LevelResult(BaseModel):
@@ -125,6 +149,15 @@ class LevelResult(BaseModel):
     )
     repeat_metrics: dict[str, RepeatMetric] | None = Field(
         None, description="Mean, std, min, max, ci95 across repeats"
+    )
+    gpu_telemetry: GpuTelemetrySummary | None = Field(
+        None, description="GPU metrics collected during this level"
+    )
+    prometheus_metrics: dict[str, float] | None = Field(
+        None, description="Server Prometheus /metrics scraped before/after level"
+    )
+    bottlenecks: list[str] | None = Field(
+        None, description="Bottleneck diagnosis findings for this level"
     )
 
     @property
@@ -160,6 +193,23 @@ class RunConfig(BaseModel):
     slo_ttft_ms: float | None = 500.0
     slo_tpot_ms: float | None = 50.0
     tokenizer: str | None = None
+    preset: str | None = Field(None, description="Workload preset (chat, rag, code, agent)")
+    input_dist: str | None = Field(
+        None, description="Input length distribution (fixed, normal, lognormal, uniform)"
+    )
+    output_dist: str | None = Field(
+        None, description="Output length distribution (fixed, normal, lognormal, uniform)"
+    )
+    arrival_dist: str = Field("poisson", description="Arrival distribution (poisson, gamma)")
+    burstiness: float = Field(1.0, description="Gamma shape parameter for arrival bursts")
+    shared_prefix_tokens: int | None = Field(
+        None, description="Shared prompt prefix length for prefix cache testing"
+    )
+    trace: str | None = Field(None, description="Path to JSONL requests trace to replay")
+    gpu_telemetry: bool = Field(True, description="Capture GPU telemetry via NVML")
+    scrape_metrics: str | None = Field(
+        None, description="Prometheus /metrics endpoint URL or 'auto'"
+    )
 
 
 class Environment(BaseModel):
@@ -196,6 +246,12 @@ class RunResult(BaseModel):
     environment: Environment
     levels: list[LevelResult]
     capacity: CapacityResult | None = Field(None, description="Set by `find-capacity`")
+    gpu_telemetry: GpuTelemetrySummary | None = Field(
+        None, description="Overall GPU telemetry summary for the sweep"
+    )
+    bottleneck_diagnosis: dict[str, Any] | None = Field(
+        None, description="Comprehensive bottleneck diagnosis and recommendations"
+    )
 
 
 class CapacityResult(BaseModel):

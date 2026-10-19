@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-10-19
+
+### Added
+- **GPU Telemetry & Energy Efficiency (NVML)**:
+  - Real-time GPU telemetry collection via pure Python `nvidia-ml-py` (`ctypes`-based zero C-compilation dependency).
+  - Collects average and peak GPU core utilization (%), VRAM memory usage (MB), power draw (W), temperature (°C), and SM clock frequency (MHz).
+  - Derived energy efficiency metric: **Tokens per Joule** ($\text{Output Throughput (tok/s)} / \text{Average Power (W)}$) and total energy consumed in Joules.
+  - Zero-fail graceful degradation when non-NVIDIA or when NVML is unavailable.
+- **Server Timing Breakdown & Overhead Isolation (P11)**:
+  - Extracts server-side prefill and decode timings directly from SSE chunk payloads (llama.cpp `timings` and Ollama durations).
+  - Calculates `queue_network_overhead_ms = Client TTFT - Server Prefill` to isolate network transit and server FIFO wait times before prompt evaluation starts.
+  - Summarizes server prefill, decode, and overhead across p50, p90, p99 percentiles in terminal, HTML, and CSV reports.
+- **Server Prometheus Scraper**:
+  - Scrapes `/metrics` text exposition format from vLLM, SGLang, llama.cpp, and TGI servers before and after test levels.
+  - Reconciles live gauges (`num_requests_waiting`, `num_requests_running`, `gpu_cache_usage`) and computes counter deltas (`prompt_tokens_total`, `generation_tokens_total`, `prefix_cache_hits`).
+  - Supports `--scrape-metrics auto` or explicit URL.
+- **Automated Bottleneck Diagnosis Engine**:
+  - Automatically identifies whether the system is `Slot/Queue-Bound`, `Memory-Bandwidth-Bound`, `Compute-Bound`, `Client/Loop-Bound`, or `Balanced`.
+  - Provides clear diagnostic severity, empirical evidence, and actionable tuning recommendations in reports and comparisons.
+- **Real-World Workloads & Bursty Traffic**:
+  - Workload presets: `chat` (128/256), `rag` (2048/128), `code` (512/512), and `agent` (1024/384).
+  - Variable length distributions: `fixed`, `normal`, `lognormal`, and `uniform`.
+  - Bursty arrival generator using Gamma distributions (`--burstiness < 1.0` for clustered burst arrivals followed by pauses).
+  - Trace replay: `--trace requests.jsonl` to replay recorded query logs.
+  - Server prefix caching testing: `--shared-prefix-tokens N` to measure KV cache reuse.
+- **New CLI Commands**:
+  - `servebench compare-models run1.json run2.json ...`: Side-by-side terminal comparison of latency, throughput, power draw, Tokens/Joule, and bottlenecks.
+  - `servebench find-context-limit`: Probes doubling prompt lengths up to 32k tokens to identify maximum working context window before server OOM or timeout.
+
 ## [0.1.0] - 2026-10-19
 
 ### Added

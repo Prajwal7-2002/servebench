@@ -157,4 +157,13 @@ def summarize(
         token_sources=dict(Counter(r.token_source for r in ok)),
         reasoning_share=(sum(r.reasoning_chunks for r in ok) / chunks) if chunks else None,
         answer_start=stats([r.answer_start for r in ok if r.answer_start is not None]),
+        server_prefill_ms=stats(
+            [r.server_prefill_ms for r in ok if r.server_prefill_ms is not None]
+        ),
+        server_decode_ms=stats(
+            [r.server_decode_ms for r in ok if r.server_decode_ms is not None]
+        ),
+        queue_network_overhead_ms=stats(
+            [r.queue_network_overhead_ms for r in ok if r.queue_network_overhead_ms is not None]
+        ),
     )
