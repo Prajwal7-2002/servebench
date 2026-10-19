@@ -4,7 +4,7 @@ A hands-on guide to how LLM inference systems work under the hood.
 
 Instead of reading abstract math or architecture diagrams, you will run 7 reproducible experiments on your own machine using [servebench](https://github.com/Prajwal7-2002/servebench) and [Ollama](https://ollama.com). Every experiment explains the systems concept, gives the exact command to run, and shows the real numbers measured on a laptop GPU (NVIDIA RTX 3050 6 GB Laptop GPU with `qwen2.5:0.5b`).
 
-All raw benchmark data for these experiments is committed in [`results/learn/`](../results/learn) and [`results/`](../results).
+All raw benchmark data for these experiments is committed in [`results/learn/`](https://github.com/Prajwal7-2002/servebench/tree/main/results/learn) and [`results/`](https://github.com/Prajwal7-2002/servebench/tree/main/results).
 
 ---
 
@@ -12,7 +12,7 @@ All raw benchmark data for these experiments is committed in [`results/learn/`](
 
 1. Install **servebench**:
    ```bash
-   uv tool install --from . servebench
+   pip install servebench
    ```
 2. Install and start **Ollama** with a small model:
    ```bash
@@ -57,7 +57,7 @@ servebench run --url http://127.0.0.1:11434/v1 --model qwen2.5:0.5b \
 ```
 
 ### Real Measured Numbers (RTX 3050 6 GB)
-*(Source: [`results/learn/prompt-*.json`](../results/learn))*
+*(Source: [`results/learn/prompt-*.json`](https://github.com/Prajwal7-2002/servebench/tree/main/results/learn))*
 
 | Prompt Length | TTFT p50 | TTFT p99 | Prefill Speed |
 |---|---|---|---|
@@ -129,7 +129,7 @@ servebench run --url http://127.0.0.1:11434/v1 --model qwen2.5:0.5b \
 ```
 
 ### Real Measured Numbers (RTX 3050 6 GB)
-*(Source: [`results/ollama-parallel.md`](../results/ollama-parallel.md))*
+*(Source: [`results/ollama-parallel.md`](https://github.com/Prajwal7-2002/servebench/blob/main/results/ollama-parallel.md))*
 
 | Slots (`NUM_PARALLEL`) | Concurrency ($c$) | Total Throughput | Single-Stream TPOT | TTFT p50 |
 |---|---|---|---|---|
@@ -240,7 +240,7 @@ When measuring LLM serving systems, three subtle pitfalls produce misleading num
 ### Pitfall 1: Prompt Cache Hits (The Seed Trap)
 Many modern inference engines (Ollama, vLLM, llama.cpp) cache the KV states of common prompt prefixes.
 * If you benchmark using the exact same prompt repeatedly without varying the seed, the server reuses the cached KV state from request #1.
-* In [`results/learn/cache-seed7.json`](../results/learn/cache-seed7.json), reusing the prompt dropped TTFT from **42.2 ms down to 20.4 ms** (a 51% artificial latency reduction!).
+* In [`results/learn/cache-seed7.json`](https://github.com/Prajwal7-2002/servebench/blob/main/results/learn/cache-seed7.json), reusing the prompt dropped TTFT from **42.2 ms down to 20.4 ms** (a 51% artificial latency reduction!).
 * **How servebench handles this**: `servebench` generates fresh random prompt seeds per run by default.
 
 ### Pitfall 2: TCP Connection Overhead on Windows

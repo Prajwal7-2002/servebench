@@ -1,10 +1,10 @@
 site_name: Servebench
 site_description: Load-test any OpenAI-compatible LLM endpoint with statistical rigor, hardware telemetry, and automated bottleneck diagnosis.
 site_author: Prajwal Pujari
-site_url: https://github.com/prajwalpujari/servebench
+site_url: https://prajwal7-2002.github.io/servebench/
 
-repo_name: prajwalpujari/servebench
-repo_url: https://github.com/prajwalpujari/servebench
+repo_name: Prajwal7-2002/servebench
+repo_url: https://github.com/Prajwal7-2002/servebench
 
 theme:
   name: material

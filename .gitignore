@@ -5,6 +5,7 @@ __pycache__/
 .ruff_cache/
 dist/
 build/
+site/
 runs/
 
 # personal study notes, not part of the repo
