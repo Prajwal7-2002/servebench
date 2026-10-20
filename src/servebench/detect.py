@@ -62,6 +62,9 @@ def identify(base_url: str, timeout: float = 1.0) -> Server | None:
 
     if isinstance(v := _get_json(f"{root}/api/version", timeout), dict) and "version" in v:
         server.engine, server.version = "Ollama", str(v["version"])
+    elif isinstance(h := _get_json(f"{root}/health", timeout), dict) and h.get("engine") == "mini-infer":
+        server.engine = "mini-infer"
+        server.version = "0.1.0"
     elif isinstance(p := _get_json(f"{root}/props", timeout), dict) and (
             "default_generation_settings" in p or "total_slots" in p):
         server.engine = "llama.cpp"
