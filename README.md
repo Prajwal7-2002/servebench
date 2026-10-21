@@ -300,5 +300,20 @@ No need to create or activate a virtualenv yourself; `uv run` uses the project's
 
 ## License
 
-Apache 2.0. The dolly-15k dataset, if you use it, is CC BY-SA 3.0 and is downloaded from
-Hugging Face at runtime, not distributed here.
+Apache 2.0 — Copyright (c) 2026 Prajwal Pujari. Free for commercial, research, and educational use. See [LICENSE](LICENSE) for details. The dolly-15k dataset, if you use it, is CC BY-SA 3.0 and is downloaded from Hugging Face at runtime, not distributed here.
+
+---
+
+## Citation
+
+If you use `servebench` in your research, capacity benchmarking, or systems evaluations, please cite it as:
+
+```bibtex
+@software{pujari2026servebench,
+  author = {Prajwal Pujari},
+  title = {servebench: Production Capacity Profiler and Load-Testing Harness for Local LLM Serving Endpoints},
+  year = {2026},
+  url = {https://github.com/Prajwal7-2002/servebench}
+}
+```
+

@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use this software in your research, systems, or benchmarks, please cite it as below."
+title: "servebench: Production Capacity & Load-Testing Profiler for Local LLM Serving Endpoints"
+authors:
+  - family-names: "Pujari"
+    given-names: "Prajwal"
+date-released: 2026-10-18
+version: "0.1.0"
+repository-code: "https://github.com/Prajwal7-2002/servebench"
+url: "https://prajwal7-2002.github.io/servebench/"
+keywords:
+  - llm-benchmarking
+  - load-testing
+  - capacity-profiling
+  - nvml
+  - roofline-analysis
+  - inference-systems
+license: "Apache-2.0"
