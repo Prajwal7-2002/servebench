@@ -28,17 +28,40 @@ def _pyplot():
 
     return plt
 
+
 # Categorical slots in fixed order (one per run), stepped separately for light and dark.
 THEMES = {
     "light": {
-        "surface": "#fcfcfb", "ink": "#0b0b0b", "ink2": "#52514e", "grid": "#e4e3df",
-        "series": ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300",
-                   "#6250d6", "#e34948"],
+        "surface": "#fcfcfb",
+        "ink": "#0b0b0b",
+        "ink2": "#52514e",
+        "grid": "#e4e3df",
+        "series": [
+            "#2a78d6",
+            "#eb6834",
+            "#1baf7a",
+            "#eda100",
+            "#e87ba4",
+            "#008300",
+            "#6250d6",
+            "#e34948",
+        ],
     },
     "dark": {
-        "surface": "#1a1a19", "ink": "#f0efec", "ink2": "#c3c2b7", "grid": "#33322f",
-        "series": ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#008300",
-                   "#9085e9", "#e66767"],
+        "surface": "#1a1a19",
+        "ink": "#f0efec",
+        "ink2": "#c3c2b7",
+        "grid": "#33322f",
+        "series": [
+            "#3987e5",
+            "#d95926",
+            "#199e70",
+            "#c98500",
+            "#d55181",
+            "#008300",
+            "#9085e9",
+            "#e66767",
+        ],
     },
 }
 MAX_RUNS = 8
@@ -55,15 +78,19 @@ def load_run(path: str | Path) -> RunResult:
     except (json.JSONDecodeError, AttributeError, TypeError, ValueError) as e:
         raise RunFileError(f"{path} is not a servebench run file ({e})") from e
     if version > SCHEMA_VERSION:
-        raise RunFileError(f"{path} was written by a newer servebench (file format "
-                           f"{version}, this version reads up to {SCHEMA_VERSION}); upgrade "
-                           "servebench to read it")
+        raise RunFileError(
+            f"{path} was written by a newer servebench (file format "
+            f"{version}, this version reads up to {SCHEMA_VERSION}); upgrade "
+            "servebench to read it"
+        )
     try:
         return RunResult.model_validate_json(text)
     except ValidationError as e:
-        raise RunFileError(f"{path} is not a valid servebench run file: "
-                           f"{e.error_count()} problem(s), first: {e.errors()[0]['msg']} "
-                           f"at {'.'.join(map(str, e.errors()[0]['loc']))}") from e
+        raise RunFileError(
+            f"{path} is not a valid servebench run file: "
+            f"{e.error_count()} problem(s), first: {e.errors()[0]['msg']} "
+            f"at {'.'.join(map(str, e.errors()[0]['loc']))}"
+        ) from e
 
 
 def save_run(run: RunResult, path: str | Path) -> None:
@@ -75,63 +102,96 @@ def save_run(run: RunResult, path: str | Path) -> None:
 def to_csv(runs: list[RunResult]) -> str:
     buf = io.StringIO()
     writer = csv.writer(buf, lineterminator="\n")
-    writer.writerow([
-        "run", "label", "mode", "level", "repeat_count", "completed", "failed",
-        "req_s", "req_s_std", "out_tok_s", "out_tok_s_std", "steady_out_tok_s",
-        "ttft_p50_ms", "ttft_p50_std_ms", "ttft_p90_ms", "ttft_p99_ms",
-        "tpot_p50_ms", "tpot_p50_std_ms", "tpot_p90_ms", "tpot_p99_ms",
-        "itl_p50_ms", "e2e_p50_s", "goodput", "slo_attainment_pct",
-        "server_prefill_p50_ms", "server_decode_p50_ms", "queue_overhead_p50_ms",
-        "gpu_util_avg", "vram_used_avg_mb", "power_avg_w", "tokens_per_joule",
-    ])
+    writer.writerow(
+        [
+            "run",
+            "label",
+            "mode",
+            "level",
+            "repeat_count",
+            "completed",
+            "failed",
+            "req_s",
+            "req_s_std",
+            "out_tok_s",
+            "out_tok_s_std",
+            "steady_out_tok_s",
+            "ttft_p50_ms",
+            "ttft_p50_std_ms",
+            "ttft_p90_ms",
+            "ttft_p99_ms",
+            "tpot_p50_ms",
+            "tpot_p50_std_ms",
+            "tpot_p90_ms",
+            "tpot_p99_ms",
+            "itl_p50_ms",
+            "e2e_p50_s",
+            "goodput",
+            "slo_attainment_pct",
+            "server_prefill_p50_ms",
+            "server_decode_p50_ms",
+            "queue_overhead_p50_ms",
+            "gpu_util_avg",
+            "vram_used_avg_mb",
+            "power_avg_w",
+            "tokens_per_joule",
+        ]
+    )
     for run in runs:
         for lv in run.levels:
             s = lv.summary
             rm = lv.repeat_metrics or {}
+
             def _val(x: float | None, scale: float = 1.0, fmt: str = "{:.3f}") -> str:
                 return "" if x is None else fmt.format(x * scale)
 
             req_std = _val(rm["request_throughput"].std) if "request_throughput" in rm else ""
             out_std = (
-                _val(rm["output_throughput"].std, fmt="{:.1f}")
-                if "output_throughput" in rm
-                else ""
+                _val(rm["output_throughput"].std, fmt="{:.1f}") if "output_throughput" in rm else ""
             )
             ttft_std = (
-                _val(rm["ttft_p50"].std, scale=1000.0, fmt="{:.1f}")
-                if "ttft_p50" in rm
-                else ""
+                _val(rm["ttft_p50"].std, scale=1000.0, fmt="{:.1f}") if "ttft_p50" in rm else ""
             )
             tpot_std = (
-                _val(rm["tpot_p50"].std, scale=1000.0, fmt="{:.2f}")
-                if "tpot_p50" in rm
-                else ""
+                _val(rm["tpot_p50"].std, scale=1000.0, fmt="{:.2f}") if "tpot_p50" in rm else ""
             )
 
             gt = lv.gpu_telemetry
-            writer.writerow([
-                run.label, lv.label, lv.mode, lv.value, lv.repeat_count, s.completed, s.failed,
-                _val(s.request_throughput, fmt="{:.2f}"), req_std,
-                _val(s.output_throughput, fmt="{:.1f}"), out_std,
-                _val(s.steady_state_output_throughput, fmt="{:.1f}"),
-                _val(s.ttft.p50, scale=1000.0, fmt="{:.1f}"), ttft_std,
-                _val(s.ttft.p90, scale=1000.0, fmt="{:.1f}"),
-                _val(s.ttft.p99, scale=1000.0, fmt="{:.1f}"),
-                _val(s.tpot.p50, scale=1000.0, fmt="{:.2f}"), tpot_std,
-                _val(s.tpot.p90, scale=1000.0, fmt="{:.2f}"),
-                _val(s.tpot.p99, scale=1000.0, fmt="{:.2f}"),
-                _val(s.itl.p50, scale=1000.0, fmt="{:.2f}"),
-                _val(s.e2e.p50, fmt="{:.2f}"),
-                _val(s.goodput, fmt="{:.2f}"),
-                _val(s.slo_attainment, scale=100.0, fmt="{:.1f}"),
-                _val(s.server_prefill_ms.p50, fmt="{:.1f}"),
-                _val(s.server_decode_ms.p50, fmt="{:.1f}"),
-                _val(s.queue_network_overhead_ms.p50, fmt="{:.1f}"),
-                _val(gt.avg_gpu_util, fmt="{:.1f}") if gt else "",
-                _val(gt.avg_vram_used_mb, fmt="{:.1f}") if gt else "",
-                _val(gt.avg_power_w, fmt="{:.2f}") if gt else "",
-                _val(gt.tokens_per_joule, fmt="{:.2f}") if gt else "",
-            ])
+            writer.writerow(
+                [
+                    run.label,
+                    lv.label,
+                    lv.mode,
+                    lv.value,
+                    lv.repeat_count,
+                    s.completed,
+                    s.failed,
+                    _val(s.request_throughput, fmt="{:.2f}"),
+                    req_std,
+                    _val(s.output_throughput, fmt="{:.1f}"),
+                    out_std,
+                    _val(s.steady_state_output_throughput, fmt="{:.1f}"),
+                    _val(s.ttft.p50, scale=1000.0, fmt="{:.1f}"),
+                    ttft_std,
+                    _val(s.ttft.p90, scale=1000.0, fmt="{:.1f}"),
+                    _val(s.ttft.p99, scale=1000.0, fmt="{:.1f}"),
+                    _val(s.tpot.p50, scale=1000.0, fmt="{:.2f}"),
+                    tpot_std,
+                    _val(s.tpot.p90, scale=1000.0, fmt="{:.2f}"),
+                    _val(s.tpot.p99, scale=1000.0, fmt="{:.2f}"),
+                    _val(s.itl.p50, scale=1000.0, fmt="{:.2f}"),
+                    _val(s.e2e.p50, fmt="{:.2f}"),
+                    _val(s.goodput, fmt="{:.2f}"),
+                    _val(s.slo_attainment, scale=100.0, fmt="{:.1f}"),
+                    _val(s.server_prefill_ms.p50, fmt="{:.1f}"),
+                    _val(s.server_decode_ms.p50, fmt="{:.1f}"),
+                    _val(s.queue_network_overhead_ms.p50, fmt="{:.1f}"),
+                    _val(gt.avg_gpu_util, fmt="{:.1f}") if gt else "",
+                    _val(gt.avg_vram_used_mb, fmt="{:.1f}") if gt else "",
+                    _val(gt.avg_power_w, fmt="{:.2f}") if gt else "",
+                    _val(gt.tokens_per_joule, fmt="{:.2f}") if gt else "",
+                ]
+            )
     return buf.getvalue()
 
 
@@ -145,27 +205,48 @@ def write_csv(runs: list[RunResult], path: str | Path) -> None:
 def write_requests_csv(run: RunResult, path: str | Path) -> None:
     buf = io.StringIO()
     writer = csv.writer(buf, lineterminator="\n")
-    writer.writerow([
-        "level", "index", "ok", "error", "start_s", "ttft_ms", "e2e_s",
-        "output_tokens", "prompt_tokens", "tpot_ms", "chunks", "token_source",
-        "server_prefill_ms", "server_decode_ms", "queue_network_overhead_ms",
-    ])
+    writer.writerow(
+        [
+            "level",
+            "index",
+            "ok",
+            "error",
+            "start_s",
+            "ttft_ms",
+            "e2e_s",
+            "output_tokens",
+            "prompt_tokens",
+            "tpot_ms",
+            "chunks",
+            "token_source",
+            "server_prefill_ms",
+            "server_decode_ms",
+            "queue_network_overhead_ms",
+        ]
+    )
     for lv in run.levels:
         for r in lv.requests:
-            writer.writerow([
-                lv.label, r.index, r.ok, r.error or "",
-                f"{r.start:.4f}",
-                f"{r.ttft * 1000:.2f}" if r.ttft is not None else "",
-                f"{r.e2e:.4f}" if r.e2e is not None else "",
-                r.output_tokens, r.prompt_tokens or "",
-                f"{r.tpot * 1000:.2f}" if r.tpot is not None else "",
-                r.num_chunks, r.token_source,
-                f"{r.server_prefill_ms:.2f}" if r.server_prefill_ms is not None else "",
-                f"{r.server_decode_ms:.2f}" if r.server_decode_ms is not None else "",
-                f"{r.queue_network_overhead_ms:.2f}"
-                if r.queue_network_overhead_ms is not None
-                else "",
-            ])
+            writer.writerow(
+                [
+                    lv.label,
+                    r.index,
+                    r.ok,
+                    r.error or "",
+                    f"{r.start:.4f}",
+                    f"{r.ttft * 1000:.2f}" if r.ttft is not None else "",
+                    f"{r.e2e:.4f}" if r.e2e is not None else "",
+                    r.output_tokens,
+                    r.prompt_tokens or "",
+                    f"{r.tpot * 1000:.2f}" if r.tpot is not None else "",
+                    r.num_chunks,
+                    r.token_source,
+                    f"{r.server_prefill_ms:.2f}" if r.server_prefill_ms is not None else "",
+                    f"{r.server_decode_ms:.2f}" if r.server_decode_ms is not None else "",
+                    f"{r.queue_network_overhead_ms:.2f}"
+                    if r.queue_network_overhead_ms is not None
+                    else "",
+                ]
+            )
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(buf.getvalue(), encoding="utf-8")
@@ -179,6 +260,7 @@ def resummarize(run: RunResult, slo_ttft_ms: float | None, slo_tpot_ms: float | 
 
 # ---------- formatting ----------
 
+
 def _ms(x: float | None) -> str:
     return "-" if x is None else f"{x * 1000:.0f}" if x * 1000 >= 10 else f"{x * 1000:.1f}"
 
@@ -187,13 +269,37 @@ def _num(x: float | None, digits: int = 1) -> str:
     return "-" if x is None else f"{x:.{digits}f}"
 
 
-COLUMNS = ["load", "ok/fail", "req/s", "out tok/s", "TTFT p50", "TTFT p99", "TPOT p50",
-           "TPOT p99", "ITL p50", "E2E p50 (s)", "goodput", "tok/chunk", "in SLO"]
+COLUMNS = [
+    "load",
+    "ok/fail",
+    "req/s",
+    "out tok/s",
+    "TTFT p50",
+    "TTFT p99",
+    "TPOT p50",
+    "TPOT p99",
+    "ITL p50",
+    "E2E p50 (s)",
+    "goodput",
+    "tok/chunk",
+    "in SLO",
+]
 # The terminal table drops ITL p50 (equal to TPOT at one token per chunk) and "in SLO" (the
 # run progress lines show it); both stay in run.json and the MD/HTML reports. That keeps it
 # inside 80 columns even with 5-digit latencies.
-TERMINAL_COLUMNS = ["load", "ok/\nfail", "req/s", "out\ntok/s", "TTFT\np50", "TTFT\np99",
-                    "TPOT\np50", "TPOT\np99", "E2E\np50 s", "good-\nput", "tok/\nchunk"]
+TERMINAL_COLUMNS = [
+    "load",
+    "ok/\nfail",
+    "req/s",
+    "out\ntok/s",
+    "TTFT\np50",
+    "TTFT\np99",
+    "TPOT\np50",
+    "TPOT\np99",
+    "E2E\np50 s",
+    "good-\nput",
+    "tok/\nchunk",
+]
 _TERMINAL_SKIP = {COLUMNS.index("ITL p50"), COLUMNS.index("in SLO")}
 
 
@@ -226,10 +332,19 @@ def level_row(lv: LevelResult) -> list[str]:
 
     lbl = lv.label + (f" (x{lv.repeat_count})" if lv.repeat_count > 1 else "")
     return [
-        lbl, f"{s.completed}/{s.failed}", req_s,
-        out_tok, ttft_p50, _ms(s.ttft.p99), tpot_p50,
-        _ms(s.tpot.p99), _ms(s.itl.p50), _num(s.e2e.p50, 2), _num(s.goodput, 2),
-        _num(s.tokens_per_chunk, 2), _pct(s.slo_attainment),
+        lbl,
+        f"{s.completed}/{s.failed}",
+        req_s,
+        out_tok,
+        ttft_p50,
+        _ms(s.ttft.p99),
+        tpot_p50,
+        _ms(s.tpot.p99),
+        _ms(s.itl.p50),
+        _num(s.e2e.p50, 2),
+        _num(s.goodput, 2),
+        _num(s.tokens_per_chunk, 2),
+        _pct(s.slo_attainment),
     ]
 
 
@@ -251,6 +366,7 @@ def capacity_text(run: RunResult) -> str | None:
     cap = run.capacity
     if cap is None:
         return None
+
     def load(v: float | None) -> str:
         if cap.mode == "rate":
             return f"{v:g} req/s"
@@ -269,13 +385,19 @@ def capacity_text(run: RunResult) -> str | None:
 
     rule = f"SLO: {slo} for {target} of requests"
     if cap.reason == "start_failed":
-        return (f"No capacity found: even at {load(cap.first_fail)}, only "
-                f"{met(cap.first_fail)} met the SLO. {rule}.")
+        return (
+            f"No capacity found: even at {load(cap.first_fail)}, only "
+            f"{met(cap.first_fail)} met the SLO. {rule}."
+        )
     if cap.reason == "max_reached":
-        return (f"Capacity: at least {load(cap.capacity)} ({met(cap.capacity)} met the SLO; "
-                f"the search stopped at --max). {rule}.")
-    return (f"Capacity: {load(cap.capacity)}. At {cap.capacity:g}, {met(cap.capacity)} met "
-            f"the SLO; at {cap.first_fail:g}, only {met(cap.first_fail)}. {rule}.")
+        return (
+            f"Capacity: at least {load(cap.capacity)} ({met(cap.capacity)} met the SLO; "
+            f"the search stopped at --max). {rule}."
+        )
+    return (
+        f"Capacity: {load(cap.capacity)}. At {cap.capacity:g}, {met(cap.capacity)} met "
+        f"the SLO; at {cap.first_fail:g}, only {met(cap.first_fail)}. {rule}."
+    )
 
 
 def warnings_for(run: RunResult) -> list[str]:
@@ -283,32 +405,46 @@ def warnings_for(run: RunResult) -> list[str]:
     reasoning = [lv for lv in run.levels if lv.summary.reasoning_share]
     if reasoning:
         lv = reasoning[-1]
-        out.append(f"Reasoning model: {lv.summary.reasoning_share * 100:.0f}% of output chunks "
-                   f"at {lv.label} were reasoning tokens. TTFT counts the first reasoning token; "
-                   f"the first answer token came at p50 {_ms(lv.summary.answer_start.p50)} ms.")
+        out.append(
+            f"Reasoning model: {lv.summary.reasoning_share * 100:.0f}% of output chunks "
+            f"at {lv.label} were reasoning tokens. TTFT counts the first reasoning token; "
+            f"the first answer token came at p50 {_ms(lv.summary.answer_start.p50)} ms."
+        )
     sources = {k for lv in run.levels for k in lv.summary.token_sources}
     if "chunks" in sources:
-        out.append("Some token counts are chunk counts (server sent no `usage` and no "
-                   "--tokenizer was given); TPOT and tok/s may be off if a chunk holds "
-                   "several tokens.")
+        out.append(
+            "Some token counts are chunk counts (server sent no `usage` and no "
+            "--tokenizer was given); TPOT and tok/s may be off if a chunk holds "
+            "several tokens."
+        )
     cap = run.capacity
-    if cap and run.levels and (run.levels[0].summary.slo_ttft_ms, run.levels[0].summary.slo_tpot_ms
-                               ) != (cap.slo_ttft_ms, cap.slo_tpot_ms):
-        out.append("The capacity was found with different SLOs than this report uses; the "
-                   "'in SLO' figures are rescored, the capacity is not. Rerun find-capacity.")
+    if (
+        cap
+        and run.levels
+        and (run.levels[0].summary.slo_ttft_ms, run.levels[0].summary.slo_tpot_ms)
+        != (cap.slo_ttft_ms, cap.slo_tpot_ms)
+    ):
+        out.append(
+            "The capacity was found with different SLOs than this report uses; the "
+            "'in SLO' figures are rescored, the capacity is not. Rerun find-capacity."
+        )
     for lv in run.levels:
         if lv.client_lag_p99_ms is not None and lv.client_lag_p99_ms > 10:
-            out.append(f"{lv.label}: client event-loop lag p99 {lv.client_lag_p99_ms:.0f} ms; "
-                       "the client may be limiting the results.")
+            out.append(
+                f"{lv.label}: client event-loop lag p99 {lv.client_lag_p99_ms:.0f} ms; "
+                "the client may be limiting the results."
+            )
         if lv.summary.errors:
             errs = ", ".join(f"{k} x{v}" for k, v in lv.summary.errors.items())
             out.append(f"{lv.label}: errors: {errs}")
         if stall := find_stall(lv):
             index, worst, median = stall
-            out.append(f"{lv.label}: request {index} stalled {worst:.1f} s between two tokens "
-                       f"(typical gap {median * 1000:.0f} ms). That is the server pausing "
-                       "(GPU/driver power state, another app on the GPU, memory swapping); "
-                       "this level's averages include it. Rerun to confirm.")
+            out.append(
+                f"{lv.label}: request {index} stalled {worst:.1f} s between two tokens "
+                f"(typical gap {median * 1000:.0f} ms). That is the server pausing "
+                "(GPU/driver power state, another app on the GPU, memory swapping); "
+                "this level's averages include it. Rerun to confirm."
+            )
     small_levels = [lv.label for lv in run.levels if 0 < lv.summary.completed < 100]
     if small_levels:
         out.append(
@@ -343,8 +479,13 @@ def print_run(run: RunResult, console: Console | None = None) -> None:
     c = run.config
     # no borders and two-line headers keep it inside 80 characters; only headers may wrap,
     # numbers never get cut to "108…" or split across lines
-    table = Table(title=f"{run.label}  ({c.model} @ {c.url})", title_justify="left",
-                  box=None, pad_edge=False, header_style="bold underline")
+    table = Table(
+        title=f"{run.label}  ({c.model} @ {c.url})",
+        title_justify="left",
+        box=None,
+        pad_edge=False,
+        header_style="bold underline",
+    )
     for col in TERMINAL_COLUMNS:
         table.add_column(col, justify="left" if col == "load" else "right", no_wrap=True)
     for lv in run.levels:
@@ -354,10 +495,10 @@ def print_run(run: RunResult, console: Console | None = None) -> None:
 
     # Server-Side Timings breakdown if present
     timing_levels = [
-        lv for lv in run.levels
+        lv
+        for lv in run.levels
         if (
-            lv.summary.server_prefill_ms.count > 0
-            or lv.summary.queue_network_overhead_ms.count > 0
+            lv.summary.server_prefill_ms.count > 0 or lv.summary.queue_network_overhead_ms.count > 0
         )
     ]
     if timing_levels:
@@ -376,25 +517,15 @@ def print_run(run: RunResult, console: Console | None = None) -> None:
         for lv in timing_levels:
             s = lv.summary
             c_ttft = f"{s.ttft.p50 * 1000:.1f}" if s.ttft.p50 is not None else "-"
-            s_pre = (
-                f"{s.server_prefill_ms.p50:.1f}"
-                if s.server_prefill_ms.p50 is not None
-                else "-"
-            )
-            s_dec = (
-                f"{s.server_decode_ms.p50:.1f}"
-                if s.server_decode_ms.p50 is not None
-                else "-"
-            )
+            s_pre = f"{s.server_prefill_ms.p50:.1f}" if s.server_prefill_ms.p50 is not None else "-"
+            s_dec = f"{s.server_decode_ms.p50:.1f}" if s.server_decode_ms.p50 is not None else "-"
             q_ovh = (
                 f"{s.queue_network_overhead_ms.p50:.1f}"
                 if s.queue_network_overhead_ms.p50 is not None
                 else "-"
             )
             if s.ttft.p50 and s.queue_network_overhead_ms.p50 is not None and s.ttft.p50 > 0:
-                q_pct = (
-                    f"{(s.queue_network_overhead_ms.p50 / (s.ttft.p50 * 1000.0)) * 100:.0f}%"
-                )
+                q_pct = f"{(s.queue_network_overhead_ms.p50 / (s.ttft.p50 * 1000.0)) * 100:.0f}%"
             else:
                 q_pct = "-"
             t_table.add_row(lv.label, c_ttft, s_pre, s_dec, q_ovh, q_pct)
@@ -439,11 +570,7 @@ def print_run(run: RunResult, console: Console | None = None) -> None:
                     if gt.avg_temp_c is not None
                     else "-"
                 )
-                eff_str = (
-                    f"{gt.tokens_per_joule:.2f}"
-                    if gt.tokens_per_joule is not None
-                    else "-"
-                )
+                eff_str = f"{gt.tokens_per_joule:.2f}" if gt.tokens_per_joule is not None else "-"
                 gpu_table.add_row(lv.label, u_str, vr_str, p_str, t_str, eff_str)
         console.print()
         console.print(gpu_table)
@@ -467,16 +594,8 @@ def print_run(run: RunResult, console: Console | None = None) -> None:
             pm = lv.prometheus_metrics or {}
             w = f"{pm.get('num_requests_waiting', 0):.0f}"
             r = f"{pm.get('num_requests_running', 0):.0f}"
-            kv = (
-                f"{pm.get('gpu_cache_usage', 0) * 100:.1f}%"
-                if "gpu_cache_usage" in pm
-                else "-"
-            )
-            pt = (
-                f"{pm.get('prompt_tokens_total', 0):.0f}"
-                if "prompt_tokens_total" in pm
-                else "-"
-            )
+            kv = f"{pm.get('gpu_cache_usage', 0) * 100:.1f}%" if "gpu_cache_usage" in pm else "-"
+            pt = f"{pm.get('prompt_tokens_total', 0):.0f}" if "prompt_tokens_total" in pm else "-"
             gt = (
                 f"{pm.get('generation_tokens_total', 0):.0f}"
                 if "generation_tokens_total" in pm
@@ -507,11 +626,7 @@ def print_run(run: RunResult, console: Console | None = None) -> None:
             if f.get("category") == "Balanced":
                 console.print(f"  [dim]• {f.get('headline')}[/dim]")
             else:
-                c_tag = (
-                    "bold red"
-                    if sev == "high"
-                    else ("yellow" if sev == "medium" else "cyan")
-                )
+                c_tag = "bold red" if sev == "high" else ("yellow" if sev == "medium" else "cyan")
                 console.print(f"  [{c_tag}]• {f.get('headline')}[/{c_tag}]")
                 for ev in f.get("evidence", []):
                     console.print(f"    [dim]- {ev}[/dim]")
@@ -522,13 +637,16 @@ def print_run(run: RunResult, console: Console | None = None) -> None:
         console.print()
         console.print(f"[bold]{cap}[/bold]")
     if run.levels:
-        console.print(f"[dim]Latencies in ms unless noted. Goodput = req/s meeting "
-                      f"{slo_text(run.levels[0].summary)}.[/dim]")
+        console.print(
+            f"[dim]Latencies in ms unless noted. Goodput = req/s meeting "
+            f"{slo_text(run.levels[0].summary)}.[/dim]"
+        )
     for w in warnings_for(run):
         console.print(f"[yellow]! {w}[/yellow]")
 
 
 # ---------- charts ----------
+
 
 def _style_axes(ax, theme: dict) -> None:
     ax.set_facecolor(theme["surface"])
@@ -592,24 +710,49 @@ def sweep_figure(runs: list[RunResult], theme_name: str = "light"):
             if not pts:
                 continue
             x, y = zip(*pts, strict=True)
-            ax.plot(x, y, color=color, linewidth=2, marker="o", markersize=6,
-                    markeredgecolor=theme["surface"], markeredgewidth=1.5, label=run.label)
+            ax.plot(
+                x,
+                y,
+                color=color,
+                linewidth=2,
+                marker="o",
+                markersize=6,
+                markeredgecolor=theme["surface"],
+                markeredgewidth=1.5,
+                label=run.label,
+            )
             if direct and len(runs) > 1:
-                ax.annotate(run.label, (x[-1], y[-1]), xytext=(6, 0),
-                            textcoords="offset points", va="center", fontsize=8,
-                            color=theme["ink2"])
+                ax.annotate(
+                    run.label,
+                    (x[-1], y[-1]),
+                    xytext=(6, 0),
+                    textcoords="offset points",
+                    va="center",
+                    fontsize=8,
+                    color=theme["ink2"],
+                )
         if log_x:
             ax.set_xscale("log", base=2)
         has_inf = any(math.isinf(lv.value) for r in runs for lv in r.levels)
         ax.set_xticks(xs_all)
         ax.set_xticklabels(_tick_labels(xs_all, inf_x if has_inf else None, log_x))
         ax.set_ylim(bottom=0)
-        ax.set_xlabel("concurrent requests" if mode == "concurrency" else "request rate (req/s)",
-                      color=theme["ink2"], fontsize=9)
+        ax.set_xlabel(
+            "concurrent requests" if mode == "concurrency" else "request rate (req/s)",
+            color=theme["ink2"],
+            fontsize=9,
+        )
     if len(runs) > 1:
         handles, labels = axes.flat[0].get_legend_handles_labels()
-        leg = fig.legend(handles, labels, loc="upper center", ncol=min(len(runs), 4),
-                         frameon=False, fontsize=9, bbox_to_anchor=(0.5, 1.0))
+        leg = fig.legend(
+            handles,
+            labels,
+            loc="upper center",
+            ncol=min(len(runs), 4),
+            frameon=False,
+            fontsize=9,
+            bbox_to_anchor=(0.5, 1.0),
+        )
         for t in leg.get_texts():
             t.set_color(theme["ink"])
         fig.tight_layout(rect=(0, 0, 1, 0.95))
@@ -624,8 +767,9 @@ def distribution_figure(runs: list[RunResult], theme_name: str = "light"):
     plt = _pyplot()
     fig, axes = plt.subplots(1, 2, figsize=(10, 3.6), dpi=110)
     fig.patch.set_facecolor(theme["surface"])
-    for ax, (title, get) in zip(axes, [("TTFT (ms)", lambda r: r.ttft),
-                                       ("TPOT (ms)", lambda r: r.tpot)], strict=True):
+    for ax, (title, get) in zip(
+        axes, [("TTFT (ms)", lambda r: r.ttft), ("TPOT (ms)", lambda r: r.tpot)], strict=True
+    ):
         _style_axes(ax, theme)
         ax.set_title(f"{title}, cumulative share of requests", fontsize=11, loc="left")
         for i, run in enumerate(runs):
@@ -636,8 +780,14 @@ def distribution_figure(runs: list[RunResult], theme_name: str = "light"):
             if len(vals) == 0:
                 continue
             frac = [(i + 1) / len(vals) for i in range(len(vals))]
-            ax.step(vals, frac, where="post", color=theme["series"][i], linewidth=2,
-                    label=f"{run.label} ({lv.label})")
+            ax.step(
+                vals,
+                frac,
+                where="post",
+                color=theme["series"][i],
+                linewidth=2,
+                label=f"{run.label} ({lv.label})",
+            )
         ax.set_ylim(0, 1.02)
         ax.set_xlim(left=0)
         ax.set_yticks([0, 0.5, 0.9, 0.99])
@@ -668,15 +818,21 @@ def _check(runs: list[RunResult]) -> None:
 
 # ---------- markdown / html ----------
 
+
 def _config_rows(run: RunResult) -> list[tuple[str, str]]:
     c, e = run.config, run.environment
     return [
-        ("model", c.model), ("url", c.url), ("endpoint", c.endpoint),
+        ("model", c.model),
+        ("url", c.url),
+        ("endpoint", c.endpoint),
         ("prompts", f"{c.prompts}, input ~{c.input_len} tok, output {c.output_len} tok"),
-        ("ignore_eos", str(c.ignore_eos)), ("seed", str(c.seed)),
-        ("server", server_text(run)), ("machine", machine_text(run)),
+        ("ignore_eos", str(c.ignore_eos)),
+        ("seed", str(c.seed)),
+        ("server", server_text(run)),
+        ("machine", machine_text(run)),
         ("client", f"servebench {e.servebench_version}, Python {e.python}, {e.platform}"),
-        ("when", e.timestamp), ("notes", e.notes or "-"),
+        ("when", e.timestamp),
+        ("notes", e.notes or "-"),
     ]
 
 
@@ -710,20 +866,26 @@ def markdown(runs: list[RunResult], image_dir: Path, image_prefix: str = "") -> 
     (image_dir / "sweep.png").write_bytes(_png(sweep_figure(runs)))
     (image_dir / "distribution.png").write_bytes(_png(distribution_figure(runs)))
     lines = ["# servebench report", ""]
-    lines += [f"![Latency and throughput vs load]({image_prefix}sweep.png)", "",
-              f"![TTFT and TPOT distributions]({image_prefix}distribution.png)", ""]
+    lines += [
+        f"![Latency and throughput vs load]({image_prefix}sweep.png)",
+        "",
+        f"![TTFT and TPOT distributions]({image_prefix}distribution.png)",
+        "",
+    ]
     for run in runs:
         lines += [f"## {run.label}", ""]
         if cap := capacity_text(run):
             lines += [f"**{cap}**", ""]
         lines += ["| | |", "|---|---|"]
         lines += [f"| {k} | {v} |" for k, v in _config_rows(run)]
-        lines += ["", "| " + " | ".join(COLUMNS) + " |",
-                  "|" + "---|" * len(COLUMNS)]
+        lines += ["", "| " + " | ".join(COLUMNS) + " |", "|" + "---|" * len(COLUMNS)]
         lines += ["| " + " | ".join(level_row(lv)) + " |" for lv in run.levels]
         if run.levels:
-            lines += ["", f"Latencies in ms unless noted. Goodput = req/s meeting "
-                          f"{slo_text(run.levels[0].summary)}."]
+            lines += [
+                "",
+                f"Latencies in ms unless noted. Goodput = req/s meeting "
+                f"{slo_text(run.levels[0].summary)}.",
+            ]
         for w in warnings_for(run):
             lines.append(f"> {w}")
         lines.append("")
@@ -761,9 +923,11 @@ th { color:var(--ink2); font-weight:600; }
 def _picture(fig_fn, runs: list[RunResult], alt: str) -> str:
     light = base64.b64encode(_png(fig_fn(runs, "light"))).decode()
     dark = base64.b64encode(_png(fig_fn(runs, "dark"))).decode()
-    return (f'<figure><picture><source srcset="data:image/png;base64,{dark}" '
-            f'media="(prefers-color-scheme: dark)"><img alt="{html.escape(alt)}" '
-            f'src="data:image/png;base64,{light}"></picture></figure>')
+    return (
+        f'<figure><picture><source srcset="data:image/png;base64,{dark}" '
+        f'media="(prefers-color-scheme: dark)"><img alt="{html.escape(alt)}" '
+        f'src="data:image/png;base64,{light}"></picture></figure>'
+    )
 
 
 def html_report(runs: list[RunResult]) -> str:
@@ -775,10 +939,16 @@ def html_report(runs: list[RunResult]) -> str:
         f"<title>servebench report</title><style>{_CSS}</style></head><body><main>",
         "<h1>servebench report</h1>",
         f"<p class='sub'>{esc(', '.join(r.label for r in runs))}</p>",
-        _picture(sweep_figure, runs, "TTFT, TPOT, output throughput and end-to-end latency "
-                 "against load, one line per run"),
-        _picture(distribution_figure, runs, "Cumulative distributions of TTFT and TPOT at "
-                 "the highest load level of each run"),
+        _picture(
+            sweep_figure,
+            runs,
+            "TTFT, TPOT, output throughput and end-to-end latency against load, one line per run",
+        ),
+        _picture(
+            distribution_figure,
+            runs,
+            "Cumulative distributions of TTFT and TPOT at the highest load level of each run",
+        ),
     ]
     for run in runs:
         parts.append(f"<h2>{esc(run.label)}</h2>")
@@ -793,9 +963,7 @@ def html_report(runs: list[RunResult]) -> str:
                 "<div style='margin:16px 0; padding:12px 16px; background:var(--card); "
                 "border-radius:6px;'>"
             )
-            parts.append(
-                f"<strong>Bottleneck Diagnosis: {primary}</strong> (Health: {health})"
-            )
+            parts.append(f"<strong>Bottleneck Diagnosis: {primary}</strong> (Health: {health})")
             for f in bd.get("findings", []):
                 head = esc(f.get("headline", ""))
                 parts.append(f"<p style='margin:4px 0;'>• {head}</p>")
@@ -843,11 +1011,7 @@ def html_report(runs: list[RunResult]) -> str:
                         else "-"
                     )
                     t_s = f"{gt.avg_temp_c:.0f}°C" if gt.avg_temp_c is not None else "-"
-                    e_s = (
-                        f"{gt.tokens_per_joule:.2f}"
-                        if gt.tokens_per_joule is not None
-                        else "-"
-                    )
+                    e_s = f"{gt.tokens_per_joule:.2f}" if gt.tokens_per_joule is not None else "-"
                     parts.append(
                         f"<tr><td>{esc(lv.label)}</td><td>{u_s}</td><td>{v_s}</td>"
                         f"<td>{p_s}</td><td>{t_s}</td><td>{e_s}</td></tr>"
@@ -855,16 +1019,15 @@ def html_report(runs: list[RunResult]) -> str:
             parts.append("</table></div>")
 
         timing_levels = [
-            lv for lv in run.levels
+            lv
+            for lv in run.levels
             if (
                 lv.summary.server_prefill_ms.count > 0
                 or lv.summary.queue_network_overhead_ms.count > 0
             )
         ]
         if timing_levels:
-            parts.append(
-                "<h3>Server-Side Timings Breakdown</h3><div class='scroll'><table><tr>"
-            )
+            parts.append("<h3>Server-Side Timings Breakdown</h3><div class='scroll'><table><tr>")
             parts.append(
                 "<th>load</th><th>Client TTFT (p50 ms)</th><th>Server Prefill (p50 ms)</th>"
                 "<th>Server Decode (p50 ms)</th><th>Queue / Net (p50 ms)</th></tr>"
@@ -873,14 +1036,10 @@ def html_report(runs: list[RunResult]) -> str:
                 s = lv.summary
                 c_ttft = f"{s.ttft.p50 * 1000:.1f}" if s.ttft.p50 is not None else "-"
                 s_pre = (
-                    f"{s.server_prefill_ms.p50:.1f}"
-                    if s.server_prefill_ms.p50 is not None
-                    else "-"
+                    f"{s.server_prefill_ms.p50:.1f}" if s.server_prefill_ms.p50 is not None else "-"
                 )
                 s_dec = (
-                    f"{s.server_decode_ms.p50:.1f}"
-                    if s.server_decode_ms.p50 is not None
-                    else "-"
+                    f"{s.server_decode_ms.p50:.1f}" if s.server_decode_ms.p50 is not None else "-"
                 )
                 q_ovh = (
                     f"{s.queue_network_overhead_ms.p50:.1f}"
@@ -894,8 +1053,10 @@ def html_report(runs: list[RunResult]) -> str:
             parts.append("</table></div>")
 
         if run.levels:
-            parts.append(f"<p class='note'>Latencies in ms unless noted. Goodput = req/s "
-                         f"meeting {esc(slo_text(run.levels[0].summary))}.</p>")
+            parts.append(
+                f"<p class='note'>Latencies in ms unless noted. Goodput = req/s "
+                f"meeting {esc(slo_text(run.levels[0].summary))}.</p>"
+            )
         parts += [f"<p class='warn'>! {esc(w)}</p>" for w in warnings_for(run)]
     parts.append("</main></body></html>")
     return "\n".join(parts)
@@ -906,8 +1067,9 @@ def write_report(runs: list[RunResult], out: Path) -> Path:
     if out.suffix.lower() in (".html", ".htm"):
         out.write_text(html_report(runs), encoding="utf-8")
     elif out.suffix.lower() == ".md":
-        out.write_text(markdown(runs, out.parent / f"{out.stem}_files", f"{out.stem}_files/"),
-                       encoding="utf-8")
+        out.write_text(
+            markdown(runs, out.parent / f"{out.stem}_files", f"{out.stem}_files/"), encoding="utf-8"
+        )
     else:
         raise ValueError("report output must end in .html or .md")
     return out

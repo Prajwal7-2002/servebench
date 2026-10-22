@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-10-22
+
+### Added
+- **Live Serving & GPU Dashboard (`servebench top`)**:
+  - Terminal-based live monitor powered by `rich.live.Live` and `rich.layout.Layout`.
+  - Real-time NVML hardware metrics: power draw (W), VRAM usage (MB), GPU core utilization (%), and live energy efficiency (Tokens/Joule).
+  - Real-time server Prometheus integration: scraping active running/waiting requests and prefix cache hit ratios.
+  - Interactive live throughput sparkline and TTFT latency progression visualization.
+- **Hardware Roofline Model (`servebench roofline`)**:
+  - Analytical compute and memory bandwidth roofline analysis for LLM serving workloads.
+  - Computes Model FLOPs Utilization (MFU %) and Memory Bandwidth Utilization (MBU %) based on empirical TTFT, TPOT, and token throughput.
+  - Built-in hardware database (NVIDIA RTX 3050–4090, A100, H100, T4, Apple Silicon M-series) with custom override support (`--gpu-mem-bw`, `--gpu-tflops`).
+  - Safe, cross-platform ASCII roofline visualization plotting operational intensity and empirical operating points against hardware ceiling limits.
+- **Automated Server Parameter Auto-Tuning Engine (`servebench tune`)**:
+  - Automatic analysis of concurrency sweeps to detect saturation knees, diminishing returns, and SLO violation boundaries.
+  - Generates exact, copy-pasteable production engine launch flags and configuration directives tailored for Ollama (`OLLAMA_NUM_PARALLEL`), vLLM (`--max-num-seqs`, `--enable-chunked-prefill`, `--gpu-memory-utilization`), llama.cpp (`-cb`, `-fa`, `-np`), and mini-infer (`--max-batch-size`).
+  - CLI command `servebench tune results.json` with target SLO latency filtering and batching efficiency summaries.
+
 ## [1.0.1] - 2026-10-19
 
 ### Changed

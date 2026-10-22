@@ -59,13 +59,18 @@ def markdown(run: RunResult) -> str:
         s = lv.summary
         value = "inf" if lv.value == float("inf") else f"{lv.value:g}"
         in_slo = "-" if s.slo_attainment is None else f"{s.slo_attainment * 100:.0f}%"
-        lines.append(f"| {value} | {s.output_throughput:.0f} | {_per_user(lv)} | "
-                     f"{_ms(s.ttft.p50)} / {_ms(s.ttft.p99)} | {in_slo} |")
+        lines.append(
+            f"| {value} | {s.output_throughput:.0f} | {_per_user(lv)} | "
+            f"{_ms(s.ttft.p50)} / {_ms(s.ttft.p99)} | {in_slo} |"
+        )
     if cap := capacity_line(run):
         lines += ["", cap]
-    lines += ["", f"<sub>Measured with [servebench]({REPO}) {run.environment.servebench_version}"
-                  f": {c.prompts} prompts of ~{c.input_len} tokens, {c.output_len}-token "
-                  f"answers, {c.endpoint} endpoint.</sub>"]
+    lines += [
+        "",
+        f"<sub>Measured with [servebench]({REPO}) {run.environment.servebench_version}"
+        f": {c.prompts} prompts of ~{c.input_len} tokens, {c.output_len}-token "
+        f"answers, {c.endpoint} endpoint.</sub>",
+    ]
     return "\n".join(lines)
 
 
@@ -107,22 +112,46 @@ def card(run: RunResult, path: Path) -> Path:
     ax.tick_params(colors=ink2, labelsize=10)
     ax.grid(True, color=theme["grid"], linewidth=0.8)
     ax.set_axisbelow(True)
-    pts = sorted((lv.value, lv.summary.output_throughput) for lv in run.levels
-                 if lv.value != float("inf"))
+    pts = sorted(
+        (lv.value, lv.summary.output_throughput) for lv in run.levels if lv.value != float("inf")
+    )
     if pts:
         xs, ys = zip(*pts, strict=True)
-        ax.plot(xs, ys, color=accent, linewidth=2.5, marker="o", markersize=7,
-                markeredgecolor=theme["surface"], markeredgewidth=1.5)
+        ax.plot(
+            xs,
+            ys,
+            color=accent,
+            linewidth=2.5,
+            marker="o",
+            markersize=7,
+            markeredgecolor=theme["surface"],
+            markeredgewidth=1.5,
+        )
         if at:
             ax.axvline(at.value, color=ink2, linewidth=1, linestyle="--")
-            ax.annotate("capacity", (at.value, max(ys)), xytext=(6, -4),
-                        textcoords="offset points", fontsize=10, color=ink2, va="top")
+            ax.annotate(
+                "capacity",
+                (at.value, max(ys)),
+                xytext=(6, -4),
+                textcoords="offset points",
+                fontsize=10,
+                color=ink2,
+                va="top",
+            )
         ax.set_ylim(bottom=0)
-    ax.set_title("Total tokens/s vs " + ("users" if run.config.mode == "concurrency"
-                                         else "offered req/s"),
-                 loc="left", fontsize=12, color=ink)
-    fig.text(0.04, 0.04, f"servebench {__version__}  ·  {REPO.removeprefix('https://')}",
-             fontsize=10, color=ink2)
+    ax.set_title(
+        "Total tokens/s vs " + ("users" if run.config.mode == "concurrency" else "offered req/s"),
+        loc="left",
+        fontsize=12,
+        color=ink,
+    )
+    fig.text(
+        0.04,
+        0.04,
+        f"servebench {__version__}  ·  {REPO.removeprefix('https://')}",
+        fontsize=10,
+        color=ink2,
+    )
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path, facecolor=fig.get_facecolor())
     plt.close(fig)

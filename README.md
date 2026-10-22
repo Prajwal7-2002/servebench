@@ -69,6 +69,15 @@ servebench compare-models runs/model-q4.json runs/model-fp16.json
 servebench check candidate.json --baseline baseline.json \
     --max-ttft-degradation-pct 15.0 --max-throughput-degradation-pct 10.0
 
+# live terminal UI monitor (GPU wattage, VRAM, Tokens/Joule, queue depth)
+servebench top --url http://127.0.0.1:11434/v1
+
+# hardware roofline model (MFU %, MBU %, operational intensity, ASCII curve)
+servebench roofline runs/ollama.json --gpu-name "RTX 3050 Laptop"
+
+# automated engine auto-tuner & launch flag generator
+servebench tune runs/ollama.json --engine ollama
+
 # generate interactive HTML report
 servebench report runs/ollama.json runs/llamacpp.json --out report.html
 ```
@@ -92,6 +101,77 @@ print(f"Peak: {max(lv.summary.output_throughput for lv in res.levels):.1f} tok/s
 # Evaluate CI performance regression
 report = servebench.check_regression("candidate.json", "baseline.json")
 assert report.passed, "Serving latency regressed!"
+```
+
+## Hardware Roofline Analysis (`servebench roofline`)
+
+Analyze whether your LLM serving bottleneck is **Memory-Bandwidth Bound** (typical during token generation / decode) or **Compute Bound** (large-batch prefill), and calculate your exact hardware utilization:
+
+- **MBU (Memory Bandwidth Utilization %)**: Percentage of theoretical memory bus throughput achieved reading model weights ($\text{tok/s} \times \text{model\_bytes} / \text{bus\_bw}$).
+- **MFU (Model FLOPs Utilization %)**: Percentage of theoretical peak FP16/BF16 TFLOPs achieved by GEMM matrix operations.
+- Built-in hardware specs database: NVIDIA RTX 3050–4090, A100, H100, T4, and Apple Silicon M-series.
+
+```bash
+servebench roofline runs/ollama.json --gpu-name "RTX 3050 Laptop"
+```
+
+Outputs an ASCII roofline curve and bottleneck verdict:
+
+```text
++------------------------------------------------------------+
+| Roofline Model: NVIDIA GeForce RTX 3050 Laptop (qwen2.5:0.5b)
+| Peak Bandwidth: 192 GB/s | Peak Compute: 14.6 TFLOPs | Ridge: 758.1 FLOP/B
++------------------------------------------------------------+
+14.6 T |                                             ----------------
+       |                                            /
+       |                                           /
+       |                                          /
+       |                                         /
+ 0.1 T |                 * (c=4)                /
+       |           * (c=1)                     /
+       +------------------------------------------------------
+      0.1        1.0       10.0      100.0     1000.0   (FLOPs/Byte)
+
+[Verdict] Operating in Memory-Bandwidth Bound regime.
+          Peak MBU: 51.0%  |  Peak MFU: 0.3%
+```
+
+## Production Auto-Tuning (`servebench tune`)
+
+Don't guess serving configuration flags. `servebench tune` evaluates your concurrency sweeps, detects latency degradation knees and batching saturation points, and generates exact copy-pasteable launch flags:
+
+```bash
+servebench tune runs/ollama.json --engine ollama --slo-ttft-ms 500 --slo-tpot-ms 50
+```
+
+Generates recommended flags and environment variables tailored to your engine:
+
+```text
+======================================================================
+  Auto-Tuning Recommendations: ollama
+======================================================================
+  Recommended Concurrency : 4
+  Achieved Throughput     : 384.6 tokens/s
+  Marginal Gain at Knee   : +40.4% throughput over previous level
+  SLO Attainment          : 100.0% within latency budget
+
+Engine Launch Directives:
+  export OLLAMA_NUM_PARALLEL=4
+  export OLLAMA_MAX_LOADED_MODELS=1
+  ollama serve
+======================================================================
+```
+Supported engines: `ollama`, `vllm`, `llamacpp`, and `mini-infer`.
+
+## Real-Time Serving Monitor (`servebench top`)
+
+Like `htop` or `nvtop`, but specifically designed for LLM inference serving. Displays an interactive terminal UI streaming:
+- **GPU Telemetry**: Real-time wattage (W), VRAM allocation (MB), GPU core utilization (%), and live energy efficiency in **Tokens per Joule**.
+- **Prometheus Scraper**: Active running requests, waiting queue depth, and prefix KV cache hit ratio.
+- **Dynamic Sparklines**: Live token throughput and TTFT latency progression.
+
+```bash
+servebench top --url http://127.0.0.1:11434/v1 --interval 1.0
 ```
 
 No model at hand? `uv tool install "servebench[mock]"` (or `pip install "servebench[mock]"`) adds

@@ -58,8 +58,14 @@ async def test_rate_with_max_concurrency(server):
 
 async def test_slowdown_shows_in_sweep(server):
     server.cfg.ttft, server.cfg.itl, server.cfg.slowdown = 0.05, 0.01, 0.5
-    levels = await run_sweep(spec(server), lambda n, s: synthetic(n, 16, s), "concurrency",
-                             [1, 4], num_requests=8, warmup_requests=1)
+    levels = await run_sweep(
+        spec(server),
+        lambda n, s: synthetic(n, 16, s),
+        "concurrency",
+        [1, 4],
+        num_requests=8,
+        warmup_requests=1,
+    )
     assert [lv.value for lv in levels] == [1, 4]
     t1, t4 = levels[0].summary.ttft.p50, levels[1].summary.ttft.p50
     assert t1 == pytest.approx(0.05, abs=0.03)
@@ -69,6 +75,7 @@ async def test_slowdown_shows_in_sweep(server):
 
 async def test_errors_are_counted(server):
     from servebench.prompts import Prompt
+
     prompts = [Prompt("fine"), Prompt("FAIL"), Prompt("fine"), Prompt("FAIL")]
     lv = await run_level(spec(server), prompts, "concurrency", 2)
     assert lv.summary.completed == 2 and lv.summary.failed == 2
@@ -83,12 +90,18 @@ async def test_sweep_aborts_if_warmup_all_fails():
 
 # --duration: levels run for a time, not a request count
 
+
 async def test_concurrency_level_with_duration(server):
     server.cfg.ttft, server.cfg.itl = 0.05, 0.005
     from servebench.load import prompt_stream
 
-    lv = await run_level(spec(server, 2), prompt_stream(lambda n, s: synthetic(n, 8, s), 0),
-                         "concurrency", 2, duration=0.5)
+    lv = await run_level(
+        spec(server, 2),
+        prompt_stream(lambda n, s: synthetic(n, 8, s), 0),
+        "concurrency",
+        2,
+        duration=0.5,
+    )
     assert server.stats.peak == 2
     assert all(r.start < 0.5 for r in lv.requests)  # nothing new starts after the deadline
     assert 0.5 <= lv.duration < 0.7  # in-flight requests finish
@@ -101,16 +114,23 @@ async def test_rate_level_with_duration_matches_poisson_arrivals(server):
 
     from servebench.load import prompt_stream
 
-    lv = await run_level(spec(server, 2), prompt_stream(lambda n, s: synthetic(n, 8, s), 0),
-                         "rate", 40.0, seed=5, duration=0.5)
+    lv = await run_level(
+        spec(server, 2),
+        prompt_stream(lambda n, s: synthetic(n, 8, s), 0),
+        "rate",
+        40.0,
+        seed=5,
+        duration=0.5,
+    )
     expected = sum(1 for t in accumulate(poisson_delays(200, 40.0, seed=5)) if t < 0.5)
     assert lv.summary.completed == expected
 
 
 async def test_duration_with_request_cap(server):
     server.cfg.ttft, server.cfg.itl = 0.01, 0.002
-    measure = level_runner(spec(server, 2), lambda n, s: synthetic(n, 8, s), "concurrency",
-                           6, duration=30)
+    measure = level_runner(
+        spec(server, 2), lambda n, s: synthetic(n, 8, s), "concurrency", 6, duration=30
+    )
     lv = await measure(2)
     assert lv.summary.completed == 6 and lv.duration < 5  # the cap ended it, not the clock
 
@@ -126,5 +146,4 @@ def test_prompt_stream_batches_are_distinct():
 
 async def test_duration_rejects_infinite_rate():
     with pytest.raises(ValueError, match="finite rate"):
-        await run_level(RequestSpec(url="http://x/v1", model="m"), [], "rate", math.inf,
-                        duration=1)
+        await run_level(RequestSpec(url="http://x/v1", model="m"), [], "rate", math.inf, duration=1)

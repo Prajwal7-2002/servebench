@@ -95,10 +95,16 @@ async def find_capacity(
         levels.append(level)
         return passes(level, target)
 
-    res = await search_capacity(probe, start=start, max_value=max_value, integer=integer,
-                                tolerance=tolerance)
+    res = await search_capacity(
+        probe, start=start, max_value=max_value, integer=integer, tolerance=tolerance
+    )
     result = CapacityResult(
-        mode=mode, target=target, slo_ttft_ms=slo_ttft_ms, slo_tpot_ms=slo_tpot_ms,
-        capacity=res.capacity, first_fail=res.first_fail, reason=res.reason,
+        mode=mode,
+        target=target,
+        slo_ttft_ms=slo_ttft_ms,
+        slo_tpot_ms=slo_tpot_ms,
+        capacity=res.capacity,
+        first_fail=res.first_fail,
+        reason=res.reason,
     )
     return sorted(levels, key=lambda lv: lv.value), result

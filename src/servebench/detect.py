@@ -69,7 +69,8 @@ def identify(base_url: str, timeout: float = 1.0) -> Server | None:
         server.engine = "mini-infer"
         server.version = "0.1.0"
     elif isinstance(p := _get_json(f"{root}/props", timeout), dict) and (
-            "default_generation_settings" in p or "total_slots" in p):
+        "default_generation_settings" in p or "total_slots" in p
+    ):
         server.engine = "llama.cpp"
         server.version = p.get("build_info")
         server.details = {k: p[k] for k in ("total_slots", "model_path") if k in p}
@@ -91,13 +92,16 @@ def ollama_installed() -> bool:
     """Ollama on PATH, or in its default Windows/macOS install location."""
     if shutil.which("ollama"):
         return True
-    candidates = [Path(os.environ.get("LOCALAPPDATA", "")) / "Programs/Ollama/ollama.exe",
-                  Path("/Applications/Ollama.app")]
+    candidates = [
+        Path(os.environ.get("LOCALAPPDATA", "")) / "Programs/Ollama/ollama.exe",
+        Path("/Applications/Ollama.app"),
+    ]
     return any(p.exists() for p in candidates if str(p) not in ("", "."))
 
 
-def find_local(host: str = "127.0.0.1", ports: list[tuple[int, str]] | None = None,
-               timeout: float = 1.0) -> list[Server]:
+def find_local(
+    host: str = "127.0.0.1", ports: list[tuple[int, str]] | None = None, timeout: float = 1.0
+) -> list[Server]:
     """Every server answering on the usual local ports, in preference order."""
     ports = ports or KNOWN_PORTS
     with ThreadPoolExecutor(max_workers=len(ports)) as pool:

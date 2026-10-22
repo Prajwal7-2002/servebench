@@ -145,3 +145,54 @@ Runs an out-of-process OpenAI-compatible mock server with deterministic microsec
 ```bash
 servebench mock-server --port 8000 --ttft-ms 100 --itl-ms 20
 ```
+
+---
+
+## 10. `servebench top`
+
+Real-time interactive terminal UI dashboard displaying live GPU telemetry, Prometheus server metrics, queue depth, and dynamic throughput/TTFT sparklines.
+
+```bash
+servebench top [OPTIONS]
+```
+
+### Options
+- `--url TEXT`: Server API base URL (default: `http://127.0.0.1:11434/v1`).
+- `--scrape-metrics [auto|URL]`: Prometheus metrics endpoint URL or `auto` (default: `auto`).
+- `--interval FLOAT`: Refresh interval in seconds (default: 1.0).
+- `--gpu / --no-gpu`: Enable or disable NVML GPU telemetry polling (default: enabled).
+
+---
+
+## 11. `servebench roofline`
+
+Evaluates LLM serving performance against theoretical hardware limits using the Roofline model. Computes Memory Bandwidth Utilization (MBU %), Model FLOPs Utilization (MFU %), arithmetic intensity, and renders an ASCII roofline chart.
+
+```bash
+servebench roofline [OPTIONS] RESULTS_FILE
+```
+
+### Options
+- `RESULTS_FILE`: Path to a `run.json` benchmark file.
+- `--model TEXT`: Model identifier if not detected from results file.
+- `--gpu-name TEXT`: GPU device name for hardware lookup (default: auto-detected or `rtx 3050`).
+- `--gpu-mem-bw FLOAT`: Manual memory bandwidth override in GB/s.
+- `--gpu-tflops FLOAT`: Manual peak FP16/BF16 compute override in TFLOPs.
+
+---
+
+## 12. `servebench tune`
+
+Analyzes concurrency sweeps to identify throughput saturation knees and latency SLO boundaries, outputting recommended engine launch flags and environment variables.
+
+```bash
+servebench tune [OPTIONS] RESULTS_FILE
+```
+
+### Options
+- `RESULTS_FILE`: Path to a `run.json` benchmark file.
+- `--engine [auto|ollama|vllm|llamacpp|mini-infer]`: Target engine for generating configuration directives (default: `auto`).
+- `--slo-ttft-ms FLOAT`: Target TTFT latency SLO in milliseconds (default: 500.0).
+- `--slo-tpot-ms FLOAT`: Target TPOT latency SLO in milliseconds (default: 50.0).
+- `--target-slo-pct FLOAT`: Target percentage of requests meeting SLOs (default: 90.0).
+

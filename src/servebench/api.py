@@ -100,9 +100,11 @@ def benchmark(
     )
 
     if trace:
+
         def prompts_for(n: int, _s: int) -> list[Prompt]:
             return load_trace_file(trace, n)
     elif shared_prefix_tokens:
+
         def prompts_for(n: int, s: int) -> list[Prompt]:
             return generate_workload_requests(
                 n,
@@ -112,6 +114,7 @@ def benchmark(
                 seed=s,
             )
     else:
+
         def prompts_for(n: int, s: int) -> list[Prompt]:
             return load_prompts("synthetic", n, input_len, s)
 

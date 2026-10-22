@@ -27,10 +27,13 @@ class RequestResult(BaseModel):
     output_tokens: int = 0
     token_source: TokenSource = "chunks"
     reasoning_chunks: int = Field(
-        0, description="Content chunks that were reasoning ('thinking') tokens, not answer")
+        0, description="Content chunks that were reasoning ('thinking') tokens, not answer"
+    )
     answer_start: float | None = Field(
-        None, description="Send -> first answer (non-reasoning) chunk; equals TTFT for "
-        "models that don't stream reasoning")
+        None,
+        description="Send -> first answer (non-reasoning) chunk; equals TTFT for "
+        "models that don't stream reasoning",
+    )
     server_prefill_ms: float | None = Field(
         None, description="Time server spent on prompt prefill evaluation in ms"
     )
@@ -101,7 +104,8 @@ class Summary(BaseModel):
     )
     goodput: float
     slo_attainment: float | None = Field(
-        None, description="Share of all requests (failed ones included) that met the SLOs")
+        None, description="Share of all requests (failed ones included) that met the SLOs"
+    )
     slo_ttft_ms: float | None
     slo_tpot_ms: float | None
     ttft: Stats
@@ -112,9 +116,11 @@ class Summary(BaseModel):
     tokens_per_chunk: float | None = None
     token_sources: dict[str, int] = Field(default_factory=dict)
     reasoning_share: float | None = Field(
-        None, description="Share of content chunks that were reasoning tokens")
-    answer_start: Stats = Field(default_factory=Stats,
-                                description="Send -> first answer token (after reasoning)")
+        None, description="Share of content chunks that were reasoning tokens"
+    )
+    answer_start: Stats = Field(
+        default_factory=Stats, description="Send -> first answer token (after reasoning)"
+    )
     server_prefill_ms: Stats = Field(
         default_factory=Stats, description="Server prompt evaluation/prefill time in ms"
     )
@@ -138,8 +144,9 @@ class LevelResult(BaseModel):
     value: float = Field(description="Concurrency N, or request rate in req/s (inf = all at once)")
     duration: float
     client_lag_p99_ms: float | None = Field(
-        None, description="p99 event-loop scheduling delay in the client; high means the "
-        "client, not the server, may be the bottleneck"
+        None,
+        description="p99 event-loop scheduling delay in the client; high means the "
+        "client, not the server, may be the bottleneck",
     )
     requests: list[RequestResult]
     summary: Summary

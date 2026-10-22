@@ -74,8 +74,7 @@ def create_app(cfg: MockConfig | None = None) -> FastAPI:
     @app.get("/stats")
     async def get_stats():
         s = app.state.stats
-        return {"active": s.active, "peak": s.peak, "total": s.total,
-                "connections": len(s.peers)}
+        return {"active": s.active, "peak": s.peak, "total": s.total, "connections": len(s.peers)}
 
     # Control API, so tests can run the mock in its own process (like a real server) and
     # still change its behaviour per test. Not part of the OpenAI API.
@@ -113,8 +112,13 @@ def create_app(cfg: MockConfig | None = None) -> FastAPI:
         created = int(time.time())
         obj = "chat.completion.chunk" if chat else "text_completion"
 
-        def chunk(content: str | None, *, role: bool = False, finish: str | None = None,
-                  reasoning: bool = False) -> str:
+        def chunk(
+            content: str | None,
+            *,
+            role: bool = False,
+            finish: str | None = None,
+            reasoning: bool = False,
+        ) -> str:
             if chat:
                 if role:
                     delta = {"role": "assistant", "content": ""}
@@ -125,8 +129,13 @@ def create_app(cfg: MockConfig | None = None) -> FastAPI:
                 choice = {"index": 0, "delta": delta, "finish_reason": finish}
             else:
                 choice = {"index": 0, "text": content or "", "finish_reason": finish}
-            data = {"id": "mock", "object": obj, "created": created, "model": cfg.model,
-                    "choices": [choice]}
+            data = {
+                "id": "mock",
+                "object": obj,
+                "created": created,
+                "model": cfg.model,
+                "choices": [choice],
+            }
             return f"data: {json.dumps(data)}\n\n"
 
         async def stream():
@@ -154,15 +163,27 @@ def create_app(cfg: MockConfig | None = None) -> FastAPI:
                     k += 1
                     last = sent >= n_out and not cfg.no_done
                     thinking = chat and sent <= cfg.reasoning_tokens
-                    yield chunk(("think " if thinking else "tok ") * m,
-                                finish="length" if last else None, reasoning=thinking)
+                    yield chunk(
+                        ("think " if thinking else "tok ") * m,
+                        finish="length" if last else None,
+                        reasoning=thinking,
+                    )
                 if cfg.no_done:
                     return
                 if want_usage and cfg.send_usage:
-                    usage = {"prompt_tokens": len(text.split()), "completion_tokens": n_out,
-                             "total_tokens": len(text.split()) + n_out}
-                    data = {"id": "mock", "object": obj, "created": created, "model": cfg.model,
-                            "choices": [], "usage": usage}
+                    usage = {
+                        "prompt_tokens": len(text.split()),
+                        "completion_tokens": n_out,
+                        "total_tokens": len(text.split()) + n_out,
+                    }
+                    data = {
+                        "id": "mock",
+                        "object": obj,
+                        "created": created,
+                        "model": cfg.model,
+                        "choices": [],
+                        "usage": usage,
+                    }
                     yield f"data: {json.dumps(data)}\n\n"
                 yield "data: [DONE]\n\n"
             finally:

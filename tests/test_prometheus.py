@@ -1,6 +1,5 @@
 """Tests for Prometheus /metrics parsing, standard metric extraction, and endpoint resolution."""
 
-
 from servebench.prometheus import (
     extract_standard_metrics,
     parse_prometheus_text,
@@ -46,12 +45,10 @@ def test_resolve_metrics_url():
         == "http://other-host:9090/metrics"
     )
     assert (
-        resolve_metrics_url("http://127.0.0.1:8000/v1", "auto")
-        == "http://127.0.0.1:8000/metrics"
+        resolve_metrics_url("http://127.0.0.1:8000/v1", "auto") == "http://127.0.0.1:8000/metrics"
     )
     assert (
-        resolve_metrics_url("https://api.myllm.com/v1", "AUTO")
-        == "https://api.myllm.com/metrics"
+        resolve_metrics_url("https://api.myllm.com/v1", "AUTO") == "https://api.myllm.com/metrics"
     )
 
 

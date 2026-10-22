@@ -30,6 +30,7 @@ def pick_model(server: detect.Server) -> str | None:
 def default_out(engine: str, model: str) -> str:
     def slug(x: str) -> str:
         return re.sub(r"[^A-Za-z0-9.]+", "-", x).strip("-").lower()
+
     return f"servebench-quick-{slug(engine)}-{slug(model)}.json"
 
 
@@ -53,8 +54,9 @@ def summary(run: RunResult) -> list[str]:
     lines = []
     one = _level(run, 1)
     if one and one.summary.completed:
-        lines.append(f"One user:    first token in {_ms(one.summary.ttft.p50)}, then "
-                     f"{_per_user_speed(one)}")
+        lines.append(
+            f"One user:    first token in {_ms(one.summary.ttft.p50)}, then {_per_user_speed(one)}"
+        )
     if cap is None:
         return lines
     target = f"first token < {cap.slo_ttft_ms:g} ms" if cap.slo_ttft_ms else ""
@@ -65,8 +67,10 @@ def summary(run: RunResult) -> list[str]:
 
     if cap.reason == "start_failed":
         lines.append(f"Capacity:    even 1 user misses the target ({target} for {share}).")
-        lines.append("             Try a smaller model, or looser targets: "
-                     "--slo-ttft-ms 2000 --slo-tpot-ms 200")
+        lines.append(
+            "             Try a smaller model, or looser targets: "
+            "--slo-ttft-ms 2000 --slo-tpot-ms 200"
+        )
         return lines
 
     users = f"{cap.capacity:g} user" + ("" if cap.capacity == 1 else "s")
@@ -75,18 +79,24 @@ def summary(run: RunResult) -> list[str]:
     at = _level(run, cap.capacity)
     if at and at.summary.completed:
         s = at.summary
-        lines.append(f"At {users}:".ljust(13) + f"{s.output_throughput:.0f} tokens/s in total, "
-                     f"{_per_user_speed(at)} each, first token p99 {_ms(s.ttft.p99)}")
+        lines.append(
+            f"At {users}:".ljust(13) + f"{s.output_throughput:.0f} tokens/s in total, "
+            f"{_per_user_speed(at)} each, first token p99 {_ms(s.ttft.p99)}"
+        )
 
     # Why it stops there: if a request at the first failing load waits about as long as a
     # whole answer at capacity, it's queueing for a free slot, not getting slower to compute.
     fail = _level(run, cap.first_fail)
     if at and fail and fail.summary.ttft.p50 and at.summary.e2e.p50:
         if fail.summary.ttft.p50 > 0.5 * at.summary.e2e.p50:
-            lines.append(f"Why:         above {users} requests queue: the server works on "
-                         f"about {cap.capacity:g} at once (first token p50 "
-                         f"{_ms(fail.summary.ttft.p50)} at {cap.first_fail:g}).")
+            lines.append(
+                f"Why:         above {users} requests queue: the server works on "
+                f"about {cap.capacity:g} at once (first token p50 "
+                f"{_ms(fail.summary.ttft.p50)} at {cap.first_fail:g})."
+            )
             if e.engine == "Ollama" and cap.capacity <= 2:
-                lines.append("Tip:         Ollama serves one request at a time unless told "
-                             "otherwise. Set OLLAMA_NUM_PARALLEL=4, restart Ollama, run again.")
+                lines.append(
+                    "Tip:         Ollama serves one request at a time unless told "
+                    "otherwise. Set OLLAMA_NUM_PARALLEL=4, restart Ollama, run again."
+                )
     return lines

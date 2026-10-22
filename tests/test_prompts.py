@@ -16,8 +16,12 @@ def test_synthetic_is_deterministic_distinct_and_sized():
 def _dolly_file(tmp_path):
     rows = [
         {"instruction": "Say hi", "context": "", "response": "hi", "category": "open_qa"},
-        {"instruction": "Summarise this", "context": "A long passage " * 50, "response": "",
-         "category": "summarization"},
+        {
+            "instruction": "Summarise this",
+            "context": "A long passage " * 50,
+            "response": "",
+            "category": "summarization",
+        },
         {"instruction": "What is 2+2?", "context": "", "response": "4", "category": "open_qa"},
     ]
     path = tmp_path / "dolly.jsonl"

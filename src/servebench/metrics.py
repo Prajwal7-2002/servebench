@@ -140,7 +140,8 @@ def summarize(
         duration=duration,
         request_throughput=len(ok) / dur,
         output_throughput=out_tokens / dur,
-        input_throughput=(sum(prompt_tokens) / dur) if len(prompt_tokens) == len(ok) and ok
+        input_throughput=(sum(prompt_tokens) / dur)
+        if len(prompt_tokens) == len(ok) and ok
         else None,
         steady_state_request_throughput=steady_req_tp,
         steady_state_output_throughput=steady_out_tp,
@@ -160,9 +161,7 @@ def summarize(
         server_prefill_ms=stats(
             [r.server_prefill_ms for r in ok if r.server_prefill_ms is not None]
         ),
-        server_decode_ms=stats(
-            [r.server_decode_ms for r in ok if r.server_decode_ms is not None]
-        ),
+        server_decode_ms=stats([r.server_decode_ms for r in ok if r.server_decode_ms is not None]),
         queue_network_overhead_ms=stats(
             [r.queue_network_overhead_ms for r in ok if r.queue_network_overhead_ms is not None]
         ),

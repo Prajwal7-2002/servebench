@@ -133,6 +133,7 @@ async def test_connections_are_reused(server):
 # Broken streams must count as failures: a request that lost half its tokens and still
 # counted as "ok" would make TPOT and throughput look better than the server really is.
 
+
 async def test_connection_dropped_mid_stream_is_a_failure(server):
     server.cfg.ttft, server.cfg.itl, server.cfg.drop_after = 0.01, 0.002, 3
     r = await _one(server, output_len=10)

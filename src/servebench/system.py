@@ -55,8 +55,13 @@ def parse_cpuinfo(text: str) -> str | None:
 
 
 def gpus() -> list[str] | None:
-    if out := _run(["nvidia-smi", "--query-gpu=name,memory.total,driver_version",
-                    "--format=csv,noheader,nounits"]):
+    if out := _run(
+        [
+            "nvidia-smi",
+            "--query-gpu=name,memory.total,driver_version",
+            "--format=csv,noheader,nounits",
+        ]
+    ):
         return parse_nvidia_smi(out) or None
     if sys.platform == "darwin" and platform.machine() == "arm64":
         # Apple Silicon: the GPU is part of the chip and shares (unified) memory
@@ -70,8 +75,9 @@ def cpu_name() -> str | None:
         if sys.platform == "win32":
             import winreg
 
-            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
-                                 r"HARDWARE\DESCRIPTION\System\CentralProcessor\0")
+            key = winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\DESCRIPTION\System\CentralProcessor\0"
+            )
             return str(winreg.QueryValueEx(key, "ProcessorNameString")[0]).strip()
         if sys.platform == "darwin":
             out = _run(["sysctl", "-n", "machdep.cpu.brand_string"])
@@ -88,14 +94,17 @@ def ram_gb() -> float | None:
             import ctypes
 
             class _MemStatus(ctypes.Structure):
-                _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong),
-                            ("ullTotalPhys", ctypes.c_ulonglong),
-                            ("ullAvailPhys", ctypes.c_ulonglong),
-                            ("ullTotalPageFile", ctypes.c_ulonglong),
-                            ("ullAvailPageFile", ctypes.c_ulonglong),
-                            ("ullTotalVirtual", ctypes.c_ulonglong),
-                            ("ullAvailVirtual", ctypes.c_ulonglong),
-                            ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+                _fields_ = [
+                    ("dwLength", ctypes.c_ulong),
+                    ("dwMemoryLoad", ctypes.c_ulong),
+                    ("ullTotalPhys", ctypes.c_ulonglong),
+                    ("ullAvailPhys", ctypes.c_ulonglong),
+                    ("ullTotalPageFile", ctypes.c_ulonglong),
+                    ("ullAvailPageFile", ctypes.c_ulonglong),
+                    ("ullTotalVirtual", ctypes.c_ulonglong),
+                    ("ullAvailVirtual", ctypes.c_ulonglong),
+                    ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+                ]
 
             m = _MemStatus()
             m.dwLength = ctypes.sizeof(_MemStatus)

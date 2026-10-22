@@ -5,8 +5,9 @@ import json
 
 from servebench import detect, system
 
-NVIDIA = ("NVIDIA GeForce RTX 3050 6GB Laptop GPU, 6144, 551.76\n"
-          "NVIDIA A100-SXM4-80GB, 81920, 550.54\n")
+NVIDIA = (
+    "NVIDIA GeForce RTX 3050 6GB Laptop GPU, 6144, 551.76\nNVIDIA A100-SXM4-80GB, 81920, 550.54\n"
+)
 
 
 def test_parse_nvidia_smi():
@@ -47,14 +48,20 @@ def test_identify_engine_fingerprints(monkeypatch):
     def fake_server(routes):
         def get(url, timeout):  # exact paths, like a real server (others are 404 -> None)
             return routes.get(url.split("127.0.0.1:1", 1)[1])
+
         return get
 
     base = "http://127.0.0.1:1/v1"
     models = {"/v1/models": {"data": [{"id": "m"}]}}
     cases = {
         "Ollama": {"/api/version": {"version": "0.35.1"}},
-        "llama.cpp": {"/props": {"total_slots": 4, "build_info": "b6000",
-                                 "default_generation_settings": {"n_ctx": 4096}}},
+        "llama.cpp": {
+            "/props": {
+                "total_slots": 4,
+                "build_info": "b6000",
+                "default_generation_settings": {"n_ctx": 4096},
+            }
+        },
         "vLLM": {"/version": {"version": "0.11.0"}},
         "SGLang": {"/get_model_info": {"model_path": "Qwen"}},
         "LM Studio": {"/api/v0/models": {"data": []}},
@@ -70,14 +77,26 @@ def test_identify_engine_fingerprints(monkeypatch):
 
 
 def test_ollama_model_info(monkeypatch):
-    ps = {"models": [{"name": "qwen2.5:0.5b", "size": 481810185, "size_vram": 481810185,
-                      "context_length": 4096,
-                      "details": {"parameter_size": "494.03M", "quantization_level": "Q4_K_M"}}]}
+    ps = {
+        "models": [
+            {
+                "name": "qwen2.5:0.5b",
+                "size": 481810185,
+                "size_vram": 481810185,
+                "context_length": 4096,
+                "details": {"parameter_size": "494.03M", "quantization_level": "Q4_K_M"},
+            }
+        ]
+    }
     monkeypatch.setattr(detect, "_get_json", lambda url, timeout: ps)
     s = detect.Server(url="http://127.0.0.1:11434/v1", engine="Ollama")
     assert detect.model_info(s, "qwen2.5:0.5b") == {
-        "parameters": "494.03M", "quantization": "Q4_K_M", "context_length": 4096,
-        "size_gb": 0.45, "on_gpu": "100%"}
+        "parameters": "494.03M",
+        "quantization": "Q4_K_M",
+        "context_length": 4096,
+        "size_gb": 0.45,
+        "on_gpu": "100%",
+    }
     assert detect.model_info(s, "other") is None
 
 
@@ -94,9 +113,26 @@ def test_run_records_machine_and_server(server, tmp_path):
 
     server.cfg.ttft, server.cfg.itl = 0.01, 0.002
     out = tmp_path / "r.json"
-    res = CliRunner().invoke(app, ["run", "--url", server.url, "--model", "mock-model",
-                                   "--concurrency", "1", "--num-requests", "2",
-                                   "--output-len", "2", "--warmup", "0", "--out", str(out)])
+    res = CliRunner().invoke(
+        app,
+        [
+            "run",
+            "--url",
+            server.url,
+            "--model",
+            "mock-model",
+            "--concurrency",
+            "1",
+            "--num-requests",
+            "2",
+            "--output-len",
+            "2",
+            "--warmup",
+            "0",
+            "--out",
+            str(out),
+        ],
+    )
     assert res.exit_code == 0, res.output
     run = load_run(out)
     e = run.environment

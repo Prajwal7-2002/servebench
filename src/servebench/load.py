@@ -69,8 +69,9 @@ def make_session(max_connections: int | None, timeout: float) -> aiohttp.ClientS
     connector = aiohttp.TCPConnector(limit=max_connections or 0, limit_per_host=0)
     return aiohttp.ClientSession(
         connector=connector,
-        timeout=aiohttp.ClientTimeout(total=None, sock_connect=min(timeout, 30.0),
-                                      sock_read=timeout),
+        timeout=aiohttp.ClientTimeout(
+            total=None, sock_connect=min(timeout, 30.0), sock_read=timeout
+        ),
     )
 
 
@@ -180,11 +181,17 @@ async def run_level(
         lag = LagMonitor()
         lag.start()
         if mode == "concurrency":
-            reqs, dur = await run_concurrency(client, spec, prompts, int(value), counter,
-                                              duration)
+            reqs, dur = await run_concurrency(client, spec, prompts, int(value), counter, duration)
         else:
             reqs, dur = await run_rate(
-                client, spec, prompts, value, seed, max_concurrency, counter, duration,
+                client,
+                spec,
+                prompts,
+                value,
+                seed,
+                max_concurrency,
+                counter,
+                duration,
                 burstiness=burstiness,
             )
         lag_p99 = await lag.stop()
@@ -239,10 +246,23 @@ async def run_sweep(
     """Run every level. `prompts_for(n, seed)` returns n prompts; each level gets fresh ones."""
     await check_warmup(spec, prompts_for, warmup_requests, timeout, seed)
     measure = level_runner(
-        spec, prompts_for, mode, num_requests, duration=duration, min_duration=min_duration,
-        repeat=repeat, timeout=timeout, seed=seed, max_concurrency=max_concurrency,
-        slo_ttft_ms=slo_ttft_ms, slo_tpot_ms=slo_tpot_ms, counter=counter, on_level=on_level,
-        burstiness=burstiness, gpu_telemetry=gpu_telemetry, gpu_index=gpu_index,
+        spec,
+        prompts_for,
+        mode,
+        num_requests,
+        duration=duration,
+        min_duration=min_duration,
+        repeat=repeat,
+        timeout=timeout,
+        seed=seed,
+        max_concurrency=max_concurrency,
+        slo_ttft_ms=slo_ttft_ms,
+        slo_tpot_ms=slo_tpot_ms,
+        counter=counter,
+        on_level=on_level,
+        burstiness=burstiness,
+        gpu_telemetry=gpu_telemetry,
+        gpu_index=gpu_index,
         metrics_url=metrics_url,
     )
     return [await measure(value) for value in levels]
@@ -264,8 +284,7 @@ async def check_warmup(
         err = bad[0].error or ""
         # the client reports refused and timed-out connects both as "connect error"
         if err.startswith("connect error"):
-            raise RuntimeError(f"could not connect to {spec.url}. Is the server running? "
-                                f"({err})")
+            raise RuntimeError(f"could not connect to {spec.url}. Is the server running? ({err})")
         raise RuntimeError(f"all warm-up requests failed, first error: {err}")
 
 
@@ -312,10 +331,21 @@ def level_runner(
             else:
                 prompts = prompts_for(num_requests or default_num_requests(mode, value), trial_seed)
             trial = await run_level(
-                spec, prompts, mode, value, duration=effective_duration, timeout=timeout,
-                seed=trial_seed, max_concurrency=max_concurrency, slo_ttft_ms=slo_ttft_ms,
-                slo_tpot_ms=slo_tpot_ms, counter=counter, burstiness=burstiness,
-                gpu_telemetry=gpu_telemetry, gpu_index=gpu_index, metrics_url=metrics_url,
+                spec,
+                prompts,
+                mode,
+                value,
+                duration=effective_duration,
+                timeout=timeout,
+                seed=trial_seed,
+                max_concurrency=max_concurrency,
+                slo_ttft_ms=slo_ttft_ms,
+                slo_tpot_ms=slo_tpot_ms,
+                counter=counter,
+                burstiness=burstiness,
+                gpu_telemetry=gpu_telemetry,
+                gpu_index=gpu_index,
+                metrics_url=metrics_url,
             )
             trials.append(trial)
 
@@ -339,9 +369,7 @@ def level_runner(
             combined_lag = max(lags) if lags else None
 
             # Inherit GPU and Prometheus metrics from the trials
-            last_gpu = next(
-                (tr.gpu_telemetry for tr in reversed(trials) if tr.gpu_telemetry), None
-            )
+            last_gpu = next((tr.gpu_telemetry for tr in reversed(trials) if tr.gpu_telemetry), None)
             last_prom = next(
                 (tr.prometheus_metrics for tr in reversed(trials) if tr.prometheus_metrics), None
             )
@@ -368,8 +396,9 @@ def level_runner(
     return measure
 
 
-def prompt_stream(prompts_for: Callable[[int, int], list[Prompt]], seed: int,
-                  batch: int = 256) -> Iterator[Prompt]:
+def prompt_stream(
+    prompts_for: Callable[[int, int], list[Prompt]], seed: int, batch: int = 256
+) -> Iterator[Prompt]:
     """Endless prompts for timed levels, made in batches (each batch its own seed, so
     synthetic prompts stay distinct and nothing is generated that isn't used)."""
     for b in itertools.count():

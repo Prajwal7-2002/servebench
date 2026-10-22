@@ -65,7 +65,8 @@ class MockServer:
         self.log = tempfile.TemporaryFile()
         self.proc = subprocess.Popen(
             [sys.executable, "-m", "servebench.cli", "mock-server", "--port", str(self.port)],
-            stdout=self.log, stderr=subprocess.STDOUT,
+            stdout=self.log,
+            stderr=subprocess.STDOUT,
         )
         deadline = time.time() + 30
         while True:
@@ -89,11 +90,16 @@ class MockServer:
         # The first request through the app pays one-off costs (lazy imports, FastAPI
         # building its handlers). On a cold CI runner that added ~50 ms to the first test's
         # TTFT. Pay it here, like servebench's own warm-up requests do for real servers.
-        body = {"model": "mock-model", "max_tokens": 2, "stream": True,
-                "stream_options": {"include_usage": True}}
-        for path, extra in (("chat/completions", {"messages": [{"role": "user",
-                                                                "content": "warm up"}]}),
-                            ("completions", {"prompt": "warm up"})):
+        body = {
+            "model": "mock-model",
+            "max_tokens": 2,
+            "stream": True,
+            "stream_options": {"include_usage": True},
+        }
+        for path, extra in (
+            ("chat/completions", {"messages": [{"role": "user", "content": "warm up"}]}),
+            ("completions", {"prompt": "warm up"}),
+        ):
             with httpx.stream("POST", f"{self.url}/{path}", json=body | extra, timeout=10) as r:
                 r.read()
         self.reset()

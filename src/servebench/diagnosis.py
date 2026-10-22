@@ -102,10 +102,11 @@ def diagnose_run(run: RunResult) -> BottleneckReport:
                     severity="high" if ttft_ratio > 3.5 else "medium",
                     headline="Server is Slot/Queue-Bound: requests are waiting for KV cache slots.",
                     evidence=[
-                        f"TTFT p50 grew {ttft_ratio:.1f}x ({base_ttft*1000:.0f} ms at c={b_val} "
-                        f"to {peak_ttft*1000:.0f} ms at c={c_val}).",
+                        f"TTFT p50 grew {ttft_ratio:.1f}x ({base_ttft * 1000:.0f} ms at c={b_val} "
+                        f"to {peak_ttft * 1000:.0f} ms at c={c_val}).",
                         f"Token decode latency (ITL p50) remained steady "
-                        f"({itl_ratio:.1f}x: {base_itl*1000:.1f} ms -> {peak_itl*1000:.1f} ms).",
+                        f"({itl_ratio:.1f}x: {base_itl * 1000:.1f} ms "
+                        f"-> {peak_itl * 1000:.1f} ms).",
                         "Signature indicates requests queue waiting for active slots to finish.",
                     ],
                     recommendations=[
@@ -128,7 +129,7 @@ def diagnose_run(run: RunResult) -> BottleneckReport:
                     headline="Server is Memory-Bandwidth Bound during token generation.",
                     evidence=[
                         f"ITL p50 degraded by {itl_ratio:.1f}x under load "
-                        f"({base_itl*1000:.1f} ms -> {peak_itl*1000:.1f} ms).",
+                        f"({base_itl * 1000:.1f} ms -> {peak_itl * 1000:.1f} ms).",
                         f"GPU compute utilization was moderate ({avg_gpu_util:.0f}% avg)"
                         if avg_gpu_util is not None
                         else "Decode latency scaled with concurrent streams.",
@@ -148,12 +149,10 @@ def diagnose_run(run: RunResult) -> BottleneckReport:
         r for r in all_reqs if r.queue_network_overhead_ms is not None and r.ttft
     ]
     if reqs_with_overheads:
-        avg_overhead = sum(
-            r.queue_network_overhead_ms for r in reqs_with_overheads
-        ) / len(reqs_with_overheads)
-        avg_ttft_ms = sum(
-            r.ttft * 1000.0 for r in reqs_with_overheads
-        ) / len(reqs_with_overheads)
+        avg_overhead = sum(r.queue_network_overhead_ms for r in reqs_with_overheads) / len(
+            reqs_with_overheads
+        )
+        avg_ttft_ms = sum(r.ttft * 1000.0 for r in reqs_with_overheads) / len(reqs_with_overheads)
         overhead_pct = (avg_overhead / avg_ttft_ms * 100.0) if avg_ttft_ms > 0 else 0.0
 
         if overhead_pct > 40.0 and avg_overhead > 50.0:

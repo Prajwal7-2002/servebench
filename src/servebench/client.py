@@ -102,7 +102,7 @@ async def _lines(resp: aiohttp.ClientResponse) -> AsyncIterator[str]:
     async for data in resp.content.iter_any():
         buf += data
         while (i := buf.find(b"\n")) >= 0:
-            line, buf = buf[:i], buf[i + 1:]
+            line, buf = buf[:i], buf[i + 1 :]
             yield line.decode("utf-8", errors="replace").rstrip("\r")
     if buf:
         yield buf.decode("utf-8", errors="replace").rstrip("\r")
@@ -126,8 +126,9 @@ async def send_request(
     done_at: float | None = None
     streaming = False  # True once a 200 response started: errors after this are mid-stream
     try:
-        async with session.post(spec.full_url, json=spec.payload(prompt),
-                                headers=spec.headers()) as resp:
+        async with session.post(
+            spec.full_url, json=spec.payload(prompt), headers=spec.headers()
+        ) as resp:
             if resp.status != 200:
                 body = (await resp.read()).decode(errors="replace")[:200]
                 res.ok, res.error = False, f"HTTP {resp.status}: {body}"
@@ -189,8 +190,11 @@ async def send_request(
     except TimeoutError as e:  # includes aiohttp's read timeouts
         res.ok, res.error = False, f"timeout ({type(e).__name__})"
         return res
-    except (aiohttp.ServerDisconnectedError, aiohttp.ClientPayloadError,
-            aiohttp.ClientOSError) as e:
+    except (
+        aiohttp.ServerDisconnectedError,
+        aiohttp.ClientPayloadError,
+        aiohttp.ClientOSError,
+    ) as e:
         where = "connection dropped mid-stream" if streaming else "connection error"
         res.ok, res.error = False, f"{where}: {type(e).__name__} {e}"[:200]
         return res

@@ -127,11 +127,28 @@ def test_cli_repeat_and_config(server, tmp_path):
     # Test running with --repeat 2
     out_json = tmp_path / "repeat_run.json"
     out_csv = tmp_path / "repeat_run.csv"
-    res = runner.invoke(app, [
-        "run", "--url", server.url, "--model", "mock-model",
-        "--concurrency", "1", "--num-requests", "4", "--repeat", "2",
-        "--warmup", "0", "--out", str(out_json), "--csv", str(out_csv)
-    ])
+    res = runner.invoke(
+        app,
+        [
+            "run",
+            "--url",
+            server.url,
+            "--model",
+            "mock-model",
+            "--concurrency",
+            "1",
+            "--num-requests",
+            "4",
+            "--repeat",
+            "2",
+            "--warmup",
+            "0",
+            "--out",
+            str(out_json),
+            "--csv",
+            str(out_csv),
+        ],
+    )
     assert res.exit_code == 0, res.output
     assert "repeats" in res.output
     run = load_run(out_json)

@@ -8,10 +8,17 @@ from servebench.results import RequestResult
 
 def req(i, ttft, e2e, n, ok=True, error=None, chunks=None, source="usage"):
     return RequestResult(
-        index=i, start=0, ok=ok, error=error, ttft=ttft if ok else None,
-        e2e=e2e if ok else None, output_tokens=n if ok else 0, token_source=source,
-        chunk_times=chunks if chunks is not None else
-        ([ttft + k * (e2e - ttft) / max(n - 1, 1) for k in range(n)] if ok else []),
+        index=i,
+        start=0,
+        ok=ok,
+        error=error,
+        ttft=ttft if ok else None,
+        e2e=e2e if ok else None,
+        output_tokens=n if ok else 0,
+        token_source=source,
+        chunk_times=chunks
+        if chunks is not None
+        else ([ttft + k * (e2e - ttft) / max(n - 1, 1) for k in range(n)] if ok else []),
     )
 
 
@@ -35,8 +42,10 @@ def test_tpot_and_itl():
 
 def test_summary_throughput_and_errors():
     reqs = [req(i, 0.1, 1.1, 11) for i in range(8)]
-    reqs += [req(8, 0, 0, 0, ok=False, error="HTTP 500: boom"),
-             req(9, 0, 0, 0, ok=False, error="timeout (ReadTimeout)")]
+    reqs += [
+        req(8, 0, 0, 0, ok=False, error="HTTP 500: boom"),
+        req(9, 0, 0, 0, ok=False, error="timeout (ReadTimeout)"),
+    ]
     s = summarize(reqs, duration=4.0)
     assert s.completed == 8 and s.failed == 2
     assert s.errors == {"HTTP 500": 1, "timeout (ReadTimeout)": 1}
@@ -50,9 +59,9 @@ def test_summary_throughput_and_errors():
 
 def test_goodput_counts_only_requests_meeting_both_slos():
     reqs = [
-        req(0, 0.2, 1.2, 11),   # ttft 200 ms, tpot 100 ms
-        req(1, 0.6, 1.1, 11),   # ttft 600 ms -> fails TTFT
-        req(2, 0.2, 0.7, 11),   # tpot 50 ms
+        req(0, 0.2, 1.2, 11),  # ttft 200 ms, tpot 100 ms
+        req(1, 0.6, 1.1, 11),  # ttft 600 ms -> fails TTFT
+        req(2, 0.2, 0.7, 11),  # tpot 50 ms
         req(3, 0, 0, 0, ok=False, error="x"),
     ]
     assert summarize(reqs, 1.0, 500, None).goodput == pytest.approx(2)
@@ -76,12 +85,18 @@ def test_empty_level():
 
 
 def test_new_error_kinds_group_cleanly():
-    errs = ["connection dropped mid-stream: RemoteProtocolError peer closed",
-            "malformed chunk: '{bad'", "incomplete stream: ended without [DONE]",
-            "connection dropped mid-stream: ReadError x"]
+    errs = [
+        "connection dropped mid-stream: RemoteProtocolError peer closed",
+        "malformed chunk: '{bad'",
+        "incomplete stream: ended without [DONE]",
+        "connection dropped mid-stream: ReadError x",
+    ]
     reqs = [req(i, 0, 0, 0, ok=False, error=e) for i, e in enumerate(errs)]
     assert summarize(reqs, 1.0).errors == {
-        "connection dropped mid-stream": 2, "malformed chunk": 1, "incomplete stream": 1}
+        "connection dropped mid-stream": 2,
+        "malformed chunk": 1,
+        "incomplete stream": 1,
+    }
 
 
 def test_percentile_matches_numpy_linear_method():
@@ -103,8 +118,11 @@ def test_cli_startup_does_not_import_heavy_libraries():
     import subprocess
     import sys
 
-    code = ("import sys, servebench.cli; "
-            "print(','.join(m for m in ('matplotlib', 'numpy') if m in sys.modules))")
-    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
-                         check=True).stdout.strip()
+    code = (
+        "import sys, servebench.cli; "
+        "print(','.join(m for m in ('matplotlib', 'numpy') if m in sys.modules))"
+    )
+    out = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True
+    ).stdout.strip()
     assert out == ""
