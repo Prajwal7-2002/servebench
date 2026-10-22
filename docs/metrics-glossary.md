@@ -85,3 +85,40 @@ For any timing distribution, percentiles (p50, p90, p99) are computed via neares
 When `--repeat N` is specified, each load level is executed across $N$ independent runs with fresh seeds. Servebench computes sample mean $\bar{x}$, sample standard deviation $s$, and two-tailed Student's t 95% confidence intervals:
 
 $$\text{CI}_{95\%} = \bar{x} \pm t_{0.025, N-1} \times \frac{s}{\sqrt{N}}$$
+
+---
+
+## 6. Hardware Roofline & Utilization Math
+
+### Operational / Arithmetic Intensity ($I$)
+The ratio of floating point operations performed per byte of memory transferred from DRAM/HBM:
+
+$$I = \frac{\text{Floating Point Operations (FLOP)}}{\text{DRAM Memory Transferred (Bytes)}} \quad [\text{FLOP/Byte}]$$
+
+- **Decode Phase**: Each autoregressively generated token accesses all model weights once ($2P$ FLOPs per parameter, reading $P \times \text{Bytes/Param}$). At batch size $c=1$, intensity is $\approx 1.0\text{ FLOP/Byte}$ (FP16) or $\approx 4.0\text{ FLOP/Byte}$ (INT4).
+- **Batching Amortization**: As batch size $c$ increases, weights are reused across $c$ tokens, scaling arithmetic intensity $I \approx c \times I_1$.
+
+### Ridge Point ($I_{\text{ridge}}$)
+The critical arithmetic intensity where hardware performance transitions from being memory-bandwidth-bound to compute-bound:
+
+$$I_{\text{ridge}} = \frac{\text{Peak Compute Ceiling (FLOP/s)}}{\text{Peak Memory Bandwidth (Bytes/s)}} \quad [\text{FLOP/Byte}]$$
+
+- If operational intensity $I < I_{\text{ridge}}$, the workload is **Memory-Bandwidth Bound**.
+- If operational intensity $I \ge I_{\text{ridge}}$, the workload is **Compute Bound**.
+
+### Memory Bandwidth Utilization (MBU %)
+The fraction of theoretical memory bus throughput achieved by weight streaming during decode:
+
+$$\text{MBU} = \frac{\text{Achieved Memory Bandwidth}}{\text{Peak Hardware Memory Bandwidth}} \times 100\%$$
+
+where:
+$$\text{Achieved Memory Bandwidth (GB/s)} = \frac{\text{Decode Tokens/s}}{c} \times \text{Model Size (GB)}$$
+
+### Model FLOPs Utilization (MFU %)
+The fraction of theoretical peak matrix tensor compute utilized by GEMM operations:
+
+$$\text{MFU} = \frac{\text{Achieved TFLOPs}}{\text{Peak Hardware TFLOPs}} \times 100\%$$
+
+where achieved decode TFLOPs is:
+$$\text{Achieved TFLOPs} = \frac{\text{Tokens/s} \times 2 \times \text{Param Count}}{10^{12}}$$
+

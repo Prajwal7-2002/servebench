@@ -157,10 +157,10 @@ servebench top [OPTIONS]
 ```
 
 ### Options
-- `--url TEXT`: Server API base URL (default: `http://127.0.0.1:11434/v1`).
-- `--scrape-metrics [auto|URL]`: Prometheus metrics endpoint URL or `auto` (default: `auto`).
-- `--interval FLOAT`: Refresh interval in seconds (default: 1.0).
-- `--gpu / --no-gpu`: Enable or disable NVML GPU telemetry polling (default: enabled).
+- `--url TEXT` / `-u`: Server API base URL (default: `http://127.0.0.1:11434/v1`).
+- `--refresh FLOAT` / `-r`: Dashboard refresh interval in seconds (default: `0.5`).
+- `--duration FLOAT` / `-d`: Exit after N seconds (useful for scripts/testing).
+- `--inline`: Render inline directly in the terminal scrollback without switching to alternate screen buffer.
 
 ---
 
@@ -169,15 +169,15 @@ servebench top [OPTIONS]
 Evaluates LLM serving performance against theoretical hardware limits using the Roofline model. Computes Memory Bandwidth Utilization (MBU %), Model FLOPs Utilization (MFU %), arithmetic intensity, and renders an ASCII roofline chart.
 
 ```bash
-servebench roofline [OPTIONS] RESULTS_FILE
+servebench roofline [OPTIONS] [RUN_FILE]
 ```
 
 ### Options
-- `RESULTS_FILE`: Path to a `run.json` benchmark file.
-- `--model TEXT`: Model identifier if not detected from results file.
-- `--gpu-name TEXT`: GPU device name for hardware lookup (default: auto-detected or `rtx 3050`).
-- `--gpu-mem-bw FLOAT`: Manual memory bandwidth override in GB/s.
-- `--gpu-tflops FLOAT`: Manual peak FP16/BF16 compute override in TFLOPs.
+- `RUN_FILE`: Optional path to a `run.json` benchmark file.
+- `--model TEXT` / `-m`: Model identifier (e.g. `qwen2.5:0.5b`, `llama3:8b-q4_k_m`).
+- `--gpu TEXT` / `--gpu-name` / `-g`: GPU device name override (e.g., `rtx 3050`, `a100`, `t4`).
+- `--bandwidth FLOAT` / `--gpu-mem-bw` / `-b`: Manual memory bandwidth override in GB/s.
+- `--peak-tflops FLOAT` / `--gpu-tflops`: Manual peak FP16/BF16 compute override in TFLOPs.
 
 ---
 
@@ -186,13 +186,14 @@ servebench roofline [OPTIONS] RESULTS_FILE
 Analyzes concurrency sweeps to identify throughput saturation knees and latency SLO boundaries, outputting recommended engine launch flags and environment variables.
 
 ```bash
-servebench tune [OPTIONS] RESULTS_FILE
+servebench tune [OPTIONS] [RUN_FILE]
 ```
 
 ### Options
-- `RESULTS_FILE`: Path to a `run.json` benchmark file.
-- `--engine [auto|ollama|vllm|llamacpp|mini-infer]`: Target engine for generating configuration directives (default: `auto`).
-- `--slo-ttft-ms FLOAT`: Target TTFT latency SLO in milliseconds (default: 500.0).
-- `--slo-tpot-ms FLOAT`: Target TPOT latency SLO in milliseconds (default: 50.0).
-- `--target-slo-pct FLOAT`: Target percentage of requests meeting SLOs (default: 90.0).
+- `RUN_FILE`: Optional completed `run.json` to derive recommendations from. If omitted, runs an automated sweep against `--url`.
+- `--engine TEXT` / `-e`: Target engine override (`ollama`, `vllm`, `llamacpp`, `mini-infer`).
+- `--target-ttft-ms FLOAT`: Target TTFT p50 latency threshold in ms (default: `150.0`).
+- `--target-itl-ms FLOAT`: Target ITL p50 latency threshold in ms (default: `40.0`).
+- `--url TEXT` / `-u`: Base URL of OpenAI-compatible server (default: `http://127.0.0.1:11434/v1`).
+- `--model TEXT` / `-m`: Model name when running automated sweep (default: `qwen2.5:0.5b`).
 

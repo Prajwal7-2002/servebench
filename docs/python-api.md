@@ -125,3 +125,56 @@ for r in runs:
     peak_tok_s = max(lv.summary.output_throughput for lv in r.levels)
     print(f"{r.label}: {peak_tok_s:.1f} tok/s")
 ```
+
+---
+
+## 5. Hardware Roofline Analysis (`servebench.compute_roofline`)
+
+Programmatically compute operational intensity, MBU %, and MFU % across concurrency sweeps:
+
+```python
+import servebench
+
+# Load benchmark run
+run = servebench.compare(["results/ollama-np4.json"])[0]
+
+# Compute Roofline metrics for RTX 3050 Laptop GPU
+analysis = servebench.compute_roofline(
+    model_name=run.config.model,
+    levels_data=[
+        {"concurrency": int(lv.value), "output_tokens_per_s": lv.summary.output_throughput}
+        for lv in run.levels
+    ],
+    gpu_name="RTX 3050 Laptop",
+)
+
+print(f"Peak MBU: {analysis.peak_mbu}% | Peak MFU: {analysis.peak_mfu}%")
+print(f"Regime: {analysis.primary_regime}")
+
+# Print ASCII roofline curve
+print(servebench.render_ascii_roofline(analysis))
+```
+
+---
+
+## 6. Auto-Tuning Engine (`servebench.evaluate_tuning`)
+
+Analyze concurrency sweeps, determine saturation knees, and generate tailored launch configurations:
+
+```python
+import servebench
+
+run = servebench.compare(["results/ollama-np4.json"])[0]
+
+report = servebench.evaluate_tuning(
+    run=run,
+    engine_override="ollama",
+    target_ttft_p50_ms=150.0,
+    target_itl_p50_ms=40.0,
+)
+
+rec = report.recommendation
+print(f"Optimal concurrency: {rec.recommended_concurrency}")
+print(f"Launch command: {rec.launch_command_example}")
+```
+

@@ -23,6 +23,9 @@ Benchmarking LLM serving engines (vLLM, Ollama, llama.cpp, SGLang, LM Studio, TG
 4. **GPU Telemetry (NVML)**: Measures real-time GPU power (W), temperature, clocks, and computes energy efficiency in **Tokens per Joule**.
 5. **Automated Bottleneck Diagnosis**: Automatically identifies if the system is `Slot/Queue-Bound`, `Memory-Bandwidth-Bound`, `Compute-Bound`, or `Client-Bound`.
 6. **CI Performance Regression Gate**: `servebench check candidate.json --baseline base.json` to block deployments that regress latency or throughput.
+7. **Hardware Roofline Model (`servebench roofline`)**: Computes Memory Bandwidth Utilization (MBU %) and Model FLOPs Utilization (MFU %) with ASCII curves.
+8. **Automated Parameter Optimizer (`servebench tune`)**: Detects throughput saturation knees and generates production launch configurations.
+9. **Interactive Serving Monitor (`servebench top`)**: Real-time TUI streaming GPU power, VRAM, Tokens/Joule, and queue metrics.
 
 ---
 
@@ -67,6 +70,24 @@ servebench run --url http://127.0.0.1:8000/v1 --model llama-3-8b --concurrency 1
 Fail your CI build if TTFT p50 increases by $>15\%$ or throughput drops by $>10\%$:
 ```bash
 servebench check candidate.json --baseline baseline.json
+```
+
+### 4. Hardware Roofline (`servebench roofline`)
+Analyze MBU % and MFU % against theoretical limits:
+```bash
+servebench roofline results/ollama-np4.json --gpu-name "RTX 3050 Laptop"
+```
+
+### 5. Automated Server Tuning (`servebench tune`)
+Derive optimal concurrency limits and copy-pasteable launch flags:
+```bash
+servebench tune results/ollama-np4.json --engine ollama
+```
+
+### 6. Real-Time Monitor (`servebench top`)
+Live GPU telemetry and serving throughput monitor:
+```bash
+servebench top --inline
 ```
 
 ---
