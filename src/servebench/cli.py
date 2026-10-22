@@ -1208,16 +1208,28 @@ def roofline_cmd(
     gpu: Annotated[
         str | None,
         typer.Option(
-            "--gpu", "-g", help="GPU device name override (e.g., 'rtx 3050', 'a100', 't4')"
+            "--gpu",
+            "--gpu-name",
+            "-g",
+            help="GPU device name override (e.g., 'rtx 3050', 'a100', 't4')",
         ),
     ] = None,
     bandwidth: Annotated[
         float | None,
-        typer.Option("--bandwidth", "-b", help="Custom peak memory bandwidth in GB/s"),
+        typer.Option(
+            "--bandwidth",
+            "--gpu-mem-bw",
+            "-b",
+            help="Custom peak memory bandwidth in GB/s",
+        ),
     ] = None,
     peak_tflops: Annotated[
         float | None,
-        typer.Option("--peak-tflops", help="Custom peak FP16/BF16 Tensor TFLOPs"),
+        typer.Option(
+            "--peak-tflops",
+            "--gpu-tflops",
+            help="Custom peak FP16/BF16 Tensor TFLOPs",
+        ),
     ] = None,
 ) -> None:
     """Hardware Roofline Model: compute MBU %, MFU %, and plot ASCII roofline curve."""
