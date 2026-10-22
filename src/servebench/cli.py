@@ -1411,10 +1411,21 @@ def top_cmd(
         float | None,
         typer.Option("--duration", "-d", help="Exit after N seconds (useful for scripts/testing)"),
     ] = None,
+    inline: Annotated[
+        bool,
+        typer.Option("--inline", help="Render inline without switching to alternate screen buffer"),
+    ] = False,
 ) -> None:
     """Real-Time Interactive TUI: live GPU telemetry, wattage, tokens/sec, and queue monitor."""
     try:
-        asyncio.run(run_top_monitor(url=url, refresh_rate_s=refresh, max_duration_s=duration))
+        asyncio.run(
+            run_top_monitor(
+                url=url,
+                refresh_rate_s=refresh,
+                max_duration_s=duration,
+                inline=inline,
+            )
+        )
     except KeyboardInterrupt:
         pass
 

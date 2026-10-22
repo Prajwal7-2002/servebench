@@ -190,6 +190,7 @@ async def run_top_monitor(
     url: str,
     refresh_rate_s: float = 0.5,
     max_duration_s: float | None = None,
+    inline: bool = False,
     headless_frames: int | None = None,
 ) -> TopState:
     """Run the live TUI dashboard event loop."""
@@ -215,7 +216,7 @@ async def run_top_monitor(
         generate_top_layout(state),
         console=console,
         refresh_per_second=int(1.0 / refresh_rate_s),
-        screen=headless_frames is None,
+        screen=(headless_frames is None and not inline),
     ) as live:
         try:
             while True:
