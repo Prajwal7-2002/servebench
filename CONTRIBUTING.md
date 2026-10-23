@@ -56,6 +56,35 @@ uv run ruff check src tests
 
 ---
 
+## 🎯 Where We Need Help (Areas for Contribution)
+
+We actively welcome contributions in the following areas:
+
+### 1. Engine Adapters & Auto-Tune Presets (`servebench tune`)
+Expand auto-tuning and CLI launch flag generation to more serving engines:
+- [ ] **SGLang adapter**: Launch flag presets for `--mem-fraction-static`, `--radix-cache`, and chunked prefill settings.
+- [ ] **TensorRT-LLM adapter**: Flag generation for KV-cache size allocation, in-flight batching, and FP8 KV-cache precision.
+- [ ] **TGI (Text Generation Inference)**: Flag tuning for `--max-batch-prefill-tokens` and `--max-concurrent-requests`.
+- [ ] **Aphrodite Engine**: Presets for PagedAttention v2 and continuous batching sweeps.
+
+### 2. Workloads & Trace Ingestion (`src/servebench/workloads/`)
+- [ ] **RAG Profile**: Asymmetric long-input (4k–16k tokens) / short-output (50–150 tokens) workload to stress TTFT prefill boundaries.
+- [ ] **Code Autocomplete Profile**: High-frequency short bursts (200 prompt / 30 output tokens).
+- [ ] **Trace Replay Loader**: Replay real conversational traces from LMSYS Chatbot Arena or ShareGPT JSON logs.
+
+### 3. Cross-Platform Telemetry Backends (`src/servebench/telemetry/`)
+`servebench` currently has deep NVIDIA NVML telemetry. We welcome contributions adding:
+- [ ] **Apple Silicon (macOS Metal)**: SoC wattage (Watts) and unified memory bandwidth via `powermetrics` or `asitop`.
+- [ ] **AMD ROCm**: GPU utilization, VRAM, and power draw via `rocm-smi`.
+- [ ] **CPU Package RAPL**: Intel/AMD Running Average Power Limit (RAPL) sensor reading for CPU inference energy stats.
+
+### 4. Reporters & CI Integration
+- [ ] **Interactive HTML Report (`--format html`)**: Self-contained, single-file HTML report with interactive embedded charts (zero CDN dependencies).
+- [ ] **GitHub Action PR Gate**: A turnkey GitHub Action wrapper around `servebench check` that posts a markdown diff comment on pull requests comparing latency against `main`.
+- [ ] **CSV Exporter (`--format csv`)**: Clean tabular CSV export for external spreadsheet and data science analysis.
+
+---
+
 ## 📬 Pull Request Rules & Submission Process
 
 To keep `servebench` dependable and statistically rigorous, all pull requests must follow these rules:
