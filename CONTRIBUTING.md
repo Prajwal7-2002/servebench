@@ -56,9 +56,38 @@ uv run ruff check src tests
 
 ---
 
-## Submitting Pull Requests
+## 📬 Pull Request Rules & Submission Process
 
-1. Fork the repository and create a branch from `main`.
-2. Make your changes and add tests under `tests/` covering new functionality.
-3. Verify that all tests pass (`uv run pytest -q`) and lints pass (`uv run ruff check src tests`).
-4. Submit a Pull Request with a clear explanation of what changed, why, and reproducible benchmark commands.
+To keep `servebench` dependable and statistically rigorous, all pull requests must follow these rules:
+
+### 1. Branch Naming Conventions
+Always create a branch off `main` using descriptive prefixes:
+* `feat/short-feature-name` (e.g. `feat/sglang-adapter`)
+* `fix/short-bug-description` (e.g. `fix/client-lag-subtraction`)
+* `perf/short-perf-description` (e.g. `perf/lazy-import-matplotlib`)
+* `docs/short-doc-description` (e.g. `docs/statistical-rigor-guide`)
+* `test/short-test-description` (e.g. `test/streaming-parser-mock`)
+
+### 2. Conventional Commit Standards
+Format your commit messages with clear conventional commit types:
+```text
+feat(adapters): add SGLang engine health check and runner
+fix(metrics): correct client loop lag calculation on burst concurrency
+perf(cli): make matplotlib import lazy to reduce startup latency to 0.28s
+docs(readme): add vLLM vs mini-infer comparative benchmark card
+test(rigor): add test cases for Wilson confidence interval bounds
+```
+
+### 3. Verification Against a Real or Mock Serving Engine
+If your PR modifies request orchestration or metric calculation:
+* Include the exact command line used to test it (e.g., against Ollama, vLLM, or `mini-infer`).
+* Ensure both streaming (`stream=True`) and non-streaming modes work without memory leaks.
+
+### 4. Pull Request Checklist
+When opening a PR, our GitHub template will prompt you to verify:
+- [x] CLI startup time remains < 0.5s (`uv run servebench --help`).
+- [x] All latency percentiles report sample counts and warn on small samples ($N < 30$).
+- [x] Zero extra infrastructure: No external database or server daemons required.
+- [x] All 150+ unit tests pass: `uv run pytest -q`.
+- [x] Linter passes: `uv run ruff check src tests`.
+- [x] Documentation updated: `uv run mkdocs build --strict`.
