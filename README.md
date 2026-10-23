@@ -1,6 +1,9 @@
 # servebench
 
+[![PyPI](https://img.shields.io/pypi/v/servebench.svg?color=blue)](https://pypi.org/project/servebench/)
+[![Sigstore Provenance](https://img.shields.io/badge/Sigstore-Provenance_Verified-success)](https://pypi.org/project/servebench/#security)
 [![CI](https://github.com/Prajwal7-2002/servebench/actions/workflows/ci.yml/badge.svg)](https://github.com/Prajwal7-2002/servebench/actions/workflows/ci.yml)
+[![Docs](https://img.shields.io/badge/docs-GitHub_Pages-blue)](https://prajwal7-2002.github.io/servebench/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 
@@ -14,6 +17,9 @@ No GPU or engine install is needed on the client: it is one async Python process
 > [!IMPORTANT]
 > **Our Mission**: *Safe, secure, and optimized for every machine.*  
 > Deploying and serving LLMs shouldn't require guessing concurrency numbers, tolerating latency spikes, or burning excess GPU energy. `servebench` provides researchers, developers, and autonomous agent engineers with exact MBU roofline telemetry, empirical bottlenecks, and automated auto-tuning to run local and cloud inference safely, reliably, and efficiently on any hardware.
+
+> [!TIP]
+> **Engineering Deep Dive**: Read our empirical case study on [Roofline Benchmarking & Auto-Tuning LLM Serving: How We Pushed Pure PyTorch to 27 tok/s](https://prajwal-pujari.vercel.app/blog/posts/roofline-serving-benchmarks.html) demonstrating saturation knee detection and 2.04 Tok/Joule energy scaling.
 
 ## Quickstart
 
