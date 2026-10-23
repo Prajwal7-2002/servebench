@@ -11,6 +11,10 @@ side-by-side comparison of runs.
 
 No GPU or engine install is needed on the client: it is one async Python process talking HTTP.
 
+> [!IMPORTANT]
+> **Our Mission**: *Safe, secure, and optimized for every machine.*  
+> Deploying and serving LLMs shouldn't require guessing concurrency numbers, tolerating latency spikes, or burning excess GPU energy. `servebench` provides researchers, developers, and autonomous agent engineers with exact MBU roofline telemetry, empirical bottlenecks, and automated auto-tuning to run local and cloud inference safely, reliably, and efficiently on any hardware.
+
 ## Quickstart
 
 ### Installation
