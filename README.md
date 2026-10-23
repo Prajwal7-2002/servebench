@@ -224,7 +224,7 @@ Full report with every level: [results/ollama-parallel.md](https://github.com/Pr
 Raw data: `results/ollama-np{1,4,8}.json` (every request's timings). Next: llama.cpp server
 on the same GPU, and vLLM on a free Kaggle T4.
 
-### mini-infer v0.2.0: Batched Paged Attention vs Serial Decoding
+### mini-infer v0.2.1: Batched Paged Attention vs Serial Decoding
 
 Live evaluation of Flagship #2 [mini-infer](https://github.com/Prajwal7-2002/mini-infer) (continuous batching LLM engine in pure PyTorch) running `Qwen2.5-0.5B-Instruct` on an **NVIDIA GeForce RTX 3050 6GB Laptop GPU** (12 requests/level):
 
@@ -232,7 +232,7 @@ Live evaluation of Flagship #2 [mini-infer](https://github.com/Prajwal7-2002/min
 servebench run --url http://127.0.0.1:8000/v1 --model Qwen/Qwen2.5-0.5B-Instruct --concurrency 1,2,4 --num-requests 12
 ```
 
-| Concurrency | Requests (OK / Fail) | Throughput (`v0.1.0`) | Throughput (`v0.2.0`) | **Throughput Gain** | TTFT p50 | TPOT p50 | VRAM Peak | Power Avg | Tok/Joule |
+| Concurrency | Requests (OK / Fail) | Throughput (`v0.1.0`) | Throughput (`v0.2.1`) | **Throughput Gain** | TTFT p50 | TPOT p50 | VRAM Peak | Power Avg | Tok/Joule |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **c = 1** | **12 / 0** | 9.6 tok/s | **13.6 tok/s** | **+41.6%** | 556 ms | 70 ms | 1,544 MB | 13.4 W | **1.01** |
 | **c = 2** | **12 / 0** | 12.0 tok/s | **18.6 tok/s** | **+55.0%** | 1,162 ms | 98 ms | 1,548 MB | 13.1 W | **1.41** |
