@@ -11,6 +11,7 @@ Servebench automatically identifies and benchmarks all major LLM serving engines
 | **Ollama** | `11434` | `/api/version` | ✓ (`prompt_eval_duration`) | - | `OLLAMA_NUM_PARALLEL=4` |
 | **llama.cpp** | `8080` | `/props` | ✓ (`timings.prompt_ms`) | ✓ (`/metrics`) | `--parallel 4 -fa --cont-batching` |
 | **vLLM** | `8000` | `/version` | Via Prometheus | ✓ (`/metrics`) | `--max-num-seqs 64 --enable-prefix-caching` |
+| **mini-infer** | `8000` | `/health` (`engine: mini-infer`) | ✓ | - | `mini-infer serve --port 8000` |
 | **SGLang** | `30000` | `/get_model_info` | Via Prometheus | ✓ (`/metrics`) | `--mem-fraction-static 0.85` |
 | **LM Studio** | `1234` | `/api/v0/models` | - | - | Enable local server in Developer tab |
 
@@ -43,3 +44,11 @@ Servebench automatically identifies and benchmarks all major LLM serving engines
 
 ### SGLang
 - **RadixAttention & Prefix Reuse**: Benchmark SGLang's RadixAttention using Servebench's `--shared-prefix-tokens 512` flag to observe TTFT reduction from KV cache reuse.
+
+### mini-infer
+- **Zero-Dependency Continuous Serving**: Pure Python/PyTorch inference engine featuring Paged KV-Cache, chunked prefill, and speculative decoding.
+- **Auto-Detection**: Servebench recognizes `mini-infer` via its `/health` status and parses `/v1/chat/completions` usage chunks.
+- **Launch Command**:
+  ```bash
+  mini-infer serve --port 8000
+  ```
