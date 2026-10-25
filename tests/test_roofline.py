@@ -13,6 +13,12 @@ def test_estimate_model_params():
     assert params == 0.49
     assert bpp == 2.0
 
+    params, bpp = estimate_model_params("qwen2.5:3b")
+    assert params == 3.09
+
+    params, bpp = estimate_model_params("qwen2.5:14b")
+    assert params == 14.7
+
     params, bpp = estimate_model_params("llama3:8b-q4_k_m")
     assert params == 8.03
     assert bpp == 0.55
@@ -20,6 +26,11 @@ def test_estimate_model_params():
     params, bpp = estimate_model_params("mistral:7b-q8_0")
     assert params == 7.24
     assert bpp == 1.05
+
+    # Sub-2-bit ternary / BitNet
+    params, bpp = estimate_model_params("bitnet:1.58b")
+    assert params == 1.58
+    assert bpp == 0.28
 
 
 def test_resolve_gpu_spec():
@@ -29,6 +40,19 @@ def test_resolve_gpu_spec():
 
     spec_a100 = resolve_gpu_spec("A100-SXM4-80GB")
     assert spec_a100.memory_bandwidth_gb_s == 2039.0
+
+    spec_h200 = resolve_gpu_spec("NVIDIA H200")
+    assert spec_h200.memory_bandwidth_gb_s == 4800.0
+
+    spec_b200 = resolve_gpu_spec("B200")
+    assert spec_b200.memory_bandwidth_gb_s == 8000.0
+    assert spec_b200.peak_fp16_tflops == 2250.0
+
+    spec_l40s = resolve_gpu_spec("NVIDIA L40S")
+    assert spec_l40s.memory_bandwidth_gb_s == 864.0
+
+    spec_m4_max = resolve_gpu_spec("Apple M4 Max")
+    assert spec_m4_max.memory_bandwidth_gb_s == 546.0
 
     spec_generic = resolve_gpu_spec("Unknown Accelerator")
     assert spec_generic.memory_bandwidth_gb_s > 0
