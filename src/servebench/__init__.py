@@ -1,6 +1,6 @@
 """servebench: load-test any OpenAI-compatible LLM endpoint."""
 
-__version__ = "1.1.2"
+__version__ = "1.1.3"
 
 from .api import benchmark, check_regression, compare
 from .check import CheckReport, CheckThresholds
