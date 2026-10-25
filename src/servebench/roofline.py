@@ -34,8 +34,11 @@ KNOWN_GPUS: dict[str, GPUSpec] = {
     "rtx 3070": GPUSpec("RTX 3070", 448.0, 81.3, 8.0),
     "rtx 3080": GPUSpec("RTX 3080", 760.0, 119.0, 10.0),
     "rtx 3090": GPUSpec("RTX 3090", 936.0, 142.0, 24.0),
+    "rtx 4050": GPUSpec("RTX 4050 Laptop", 192.0, 90.0, 6.0),
     "rtx 4060": GPUSpec("RTX 4060", 272.0, 121.0, 8.0),
+    "rtx 4070 ti": GPUSpec("RTX 4070 Ti", 504.0, 240.0, 12.0),
     "rtx 4070": GPUSpec("RTX 4070", 504.0, 184.0, 12.0),
+    "rtx 4080 super": GPUSpec("RTX 4080 Super", 736.0, 260.0, 16.0),
     "rtx 4080": GPUSpec("RTX 4080", 717.0, 242.0, 16.0),
     "rtx 4090": GPUSpec("RTX 4090", 1008.0, 330.0, 24.0),
     "t4": GPUSpec("NVIDIA T4", 320.0, 65.0, 16.0),
@@ -43,14 +46,23 @@ KNOWN_GPUS: dict[str, GPUSpec] = {
     "a10": GPUSpec("NVIDIA A10", 600.0, 125.0, 24.0),
     "a100": GPUSpec("NVIDIA A100-SXM4-80GB", 2039.0, 312.0, 80.0),
     "h100": GPUSpec("NVIDIA H100-SXM", 3350.0, 989.0, 80.0),
+    "h200": GPUSpec("NVIDIA H200-SXM", 4800.0, 989.0, 141.0),
+    "b200": GPUSpec("NVIDIA B200", 8000.0, 2250.0, 192.0),
+    "l40s": GPUSpec("NVIDIA L40S", 864.0, 366.0, 48.0),
     "l4": GPUSpec("NVIDIA L4", 300.0, 120.0, 24.0),
-    "apple m1": GPUSpec("Apple M1", 68.25, 5.2, 16.0),
-    "apple m2": GPUSpec("Apple M2", 100.0, 7.1, 24.0),
-    "apple m3": GPUSpec("Apple M3", 100.0, 8.5, 24.0),
+    "a6000": GPUSpec("RTX A6000", 768.0, 154.0, 48.0),
     "apple m1 pro": GPUSpec("Apple M1 Pro", 200.0, 10.4, 32.0),
     "apple m1 max": GPUSpec("Apple M1 Max", 400.0, 20.8, 64.0),
+    "apple m1": GPUSpec("Apple M1", 68.25, 5.2, 16.0),
+    "apple m2 pro": GPUSpec("Apple M2 Pro", 200.0, 13.6, 32.0),
     "apple m2 max": GPUSpec("Apple M2 Max", 400.0, 27.2, 96.0),
+    "apple m2": GPUSpec("Apple M2", 100.0, 7.1, 24.0),
+    "apple m3 pro": GPUSpec("Apple M3 Pro", 150.0, 14.5, 36.0),
     "apple m3 max": GPUSpec("Apple M3 Max", 400.0, 35.0, 128.0),
+    "apple m3": GPUSpec("Apple M3", 100.0, 8.5, 24.0),
+    "apple m4 pro": GPUSpec("Apple M4 Pro", 273.0, 23.0, 48.0),
+    "apple m4 max": GPUSpec("Apple M4 Max", 546.0, 46.0, 128.0),
+    "apple m4": GPUSpec("Apple M4", 120.0, 11.5, 32.0),
 }
 
 
@@ -98,14 +110,26 @@ def estimate_model_params(model_name: str) -> tuple[float, float]:
             params = 0.49
         elif params == 1.5:
             params = 1.54
+        elif params == 3.0:
+            params = 3.09
         elif params == 7.0:
             params = 7.24
         elif params == 8.0:
             params = 8.03
+        elif params == 14.0:
+            params = 14.7
+        elif params == 32.0:
+            params = 32.5
+        elif params == 70.0:
+            params = 70.6
 
     # Estimate precision bytes per param
     bytes_per_param = 2.0  # default FP16 / BF16
-    if any(q in m for q in ["q4", "int4", "4bit", "4-bit"]):
+    if any(q in m for q in ["1.58b", "1.58-bit", "ternary", "bitnet"]):
+        bytes_per_param = 0.28  # Sub-2-bit BitNet packed representation
+    elif any(q in m for q in ["q2", "int2", "2bit", "2-bit"]):
+        bytes_per_param = 0.35
+    elif any(q in m for q in ["q4", "int4", "4bit", "4-bit"]):
         bytes_per_param = 0.55  # 4-bit with block quantization overhead
     elif any(q in m for q in ["q5", "5bit", "5-bit"]):
         bytes_per_param = 0.68
