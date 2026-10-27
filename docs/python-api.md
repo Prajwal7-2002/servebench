@@ -37,10 +37,10 @@ res = servebench.benchmark(
     mode="concurrency",
     levels=[1, 2, 4, 8],
     num_requests=25,
-    preset="chat",             # sets input_len=128, output_len=256
-    burstiness=0.8,            # clustered arrivals
-    gpu_telemetry=True,        # collect NVML GPU metrics
-    scrape_metrics="auto",     # scrape server /metrics
+    preset="chat",  # sets input_len=128, output_len=256
+    burstiness=0.8,  # clustered arrivals
+    gpu_telemetry=True,  # collect NVML GPU metrics
+    scrape_metrics="auto",  # scrape server /metrics
     save_path="results.json",
 )
 
@@ -102,7 +102,7 @@ report = servebench.check_regression(
         max_tpot_pct=10.0,
         max_throughput_pct=10.0,
         max_error_rate_pct=1.0,
-    )
+    ),
 )
 
 if not report.passed:

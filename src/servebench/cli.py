@@ -69,7 +69,13 @@ def parse_levels(text: str) -> list[float]:
         part = part.strip().lower()
         if not part:
             continue
-        v = math.inf if part in ("inf", "infinity") else float(part)
+        if part in ("inf", "infinity"):
+            v = math.inf
+        else:
+            try:
+                v = float(part)
+            except ValueError:
+                raise typer.BadParameter(f"expected numbers or 'inf', got '{part}'") from None
         if v <= 0:
             raise typer.BadParameter(f"levels must be positive, got {part}")
         out.append(v)
