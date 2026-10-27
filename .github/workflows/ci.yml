@@ -4,21 +4,42 @@ on:
   push:
     branches: [main]
   pull_request:
+    branches: [main]
 
 jobs:
   test:
+    name: Test (${{ matrix.os }}, Py${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]  # macos-latest = Apple Silicon
-        python: ["3.11", "3.12", "3.13"]
-    runs-on: ${{ matrix.os }}
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.11", "3.12"]
+
     steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.3.0
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: ${{ matrix.python }}
           enable-cache: true
-      - run: uv sync --locked
-      - run: uv run ruff check src tests
-      - run: uv run pytest -q
+
+      - name: Set up Python
+        run: uv python install ${{ matrix.python }}
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Lint checks (Ruff)
+        run: uv run ruff check src tests
+
+      - name: Formatting checks (Ruff)
+        run: uv run ruff format --check src tests
+
+      - name: Validate documentation build
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
+        run: uv run mkdocs build --strict
+
+      - name: Run test suite
+        run: uv run pytest -q

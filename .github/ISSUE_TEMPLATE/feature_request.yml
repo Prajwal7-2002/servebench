@@ -1,0 +1,44 @@
+name: "✨ Feature Request / Benchmark Proposal"
+description: "Suggest a new metric, hardware roofline preset, load pattern, or visualization"
+title: "[Feature]: "
+labels: ["enhancement", "proposal"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for suggesting an improvement to `servebench`! We welcome proposals for new serving benchmarks, telemetry collectors, and analysis tools.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Motivation
+      description: What challenge or missing capability does this feature address?
+      placeholder: "When benchmarking speculative decoding pairs, we need a dedicated metric for..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution & Methodology
+      description: Describe how the metric or command should behave, including statistical formulation if applicable.
+      placeholder: |
+        Add a `--speculative-metric` flag that captures draft acceptance rate α and verification overhead...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Existing Workarounds / Alternatives
+      description: What other approaches or tools have you tried?
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: willingness
+    attributes:
+      label: Contribution Readiness
+      options:
+        - label: I am willing to implement this feature and submit a PR.
+          required: false

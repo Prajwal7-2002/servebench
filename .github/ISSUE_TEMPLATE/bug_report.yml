@@ -1,0 +1,62 @@
+name: "🐛 Bug Report"
+description: "Report a bug, inaccurate measurement, or CLI crash in servebench"
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting an issue in `servebench`! Please make sure you are using the latest version.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description of the Issue
+      description: What happened? What were you expecting to happen?
+      placeholder: "When running servebench run against vLLM with --concurrency 8, ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Command Executed
+      description: The exact CLI command or Python code you ran.
+      placeholder: "servebench run --url http://localhost:8000/v1 --model Qwen/Qwen2.5-7B-Instruct --concurrency 4 --num-requests 20"
+    validations:
+      required: true
+
+  - type: textarea
+    id: traceback
+    attributes:
+      label: Terminal Output & Traceback
+      description: Paste the console traceback or summary table here.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Hardware & Target Serving Environment
+      description: Details about your client machine and the target inference engine being benchmarked.
+      placeholder: |
+        - Client OS: Windows 11 / Linux (Ubuntu 22.04) / macOS (Apple Silicon)
+        - Python Version: (e.g. 3.12.10)
+        - servebench Version: (e.g. 0.2.6)
+        - Target Inference Server: (e.g. vLLM 0.6.3 / Ollama / llama.cpp / TGI / mini-infer)
+        - GPU: (e.g. NVIDIA RTX 4090 / A100 / RTX 3050 / CPU)
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Validation Checklist
+      options:
+        - label: I have verified this issue occurs on the latest PyPI release or `main` branch.
+          required: true
+        - label: I have checked existing open/closed issues to avoid duplicates.
+          required: true
+        - label: I am interested in opening a Pull Request to fix this.
+          required: false

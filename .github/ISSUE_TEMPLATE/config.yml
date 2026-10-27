@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📖 Servebench Documentation & Guides
+    url: https://prajwal7-2002.github.io/servebench/
+    about: Read our documentation, CLI guides, and metrics formulas before opening an issue.
+  - name: 🔒 Report a Security Vulnerability
+    url: https://github.com/Prajwal7-2002/servebench/security/advisories/new
+    about: Privately disclose sensitive security vulnerabilities to maintainers.
