@@ -1,0 +1,1811 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Load-test any OpenAI-compatible LLM endpoint with statistical rigor, hardware telemetry, and automated bottleneck diagnosis.">
+      
+      
+        <meta name="author" content="Prajwal Pujari">
+      
+      
+        <link rel="canonical" href="https://prajwal7-2002.github.io/servebench/learn-inference/">
+      
+      
+        <link rel="prev" href="../engines/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+    
+    
+      
+        <title>Learn LLM Inference - Servebench</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="deep-purple">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#learn-llm-inference-by-measuring-it" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Servebench" class="md-header__button md-logo" aria-label="Servebench" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Servebench
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Learn LLM Inference
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="deep-purple"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="deep-purple"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/Prajwal7-2002/servebench" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Prajwal7-2002/servebench
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Servebench" class="md-nav__button md-logo" aria-label="Servebench" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Servebench
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Prajwal7-2002/servebench" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Prajwal7-2002/servebench
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../metrics-glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metrics & Math
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ci-cd-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CI/CD Regression Gating
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../engines/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engine Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Learn LLM Inference
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Learn LLM Inference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#experiment-1-the-prefill-phase-ttft-vs-prompt-length" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Experiment 1: The Prefill Phase (TTFT vs. Prompt Length)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Experiment 1: The Prefill Phase (TTFT vs. Prompt Length)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-concept" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Concept
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-experiment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Experiment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#real-measured-numbers-rtx-3050-6-gb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Real Measured Numbers (RTX 3050 6 GB)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-takeaway" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Takeaway
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#experiment-2-the-decode-phase-tpot-is-constant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Experiment 2: The Decode Phase (TPOT is Constant)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Experiment 2: The Decode Phase (TPOT is Constant)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-concept_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Concept
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-experiment_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Experiment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#real-measured-numbers-rtx-3050-6-gb_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Real Measured Numbers (RTX 3050 6 GB)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-takeaway_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Takeaway
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#experiment-3-batching-slot-saturation-ollama_num_parallel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Experiment 3: Batching &amp; Slot Saturation (OLLAMA_NUM_PARALLEL)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Experiment 3: Batching &amp; Slot Saturation (OLLAMA_NUM_PARALLEL)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-concept_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Concept
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-experiment_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Experiment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#real-measured-numbers-rtx-3050-6-gb_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Real Measured Numbers (RTX 3050 6 GB)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-takeaway_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Takeaway
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#experiment-4-queueing-the-p99-latency-knee" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Experiment 4: Queueing &amp; The p99 Latency Knee
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Experiment 4: Queueing &amp; The p99 Latency Knee">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-concept_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Concept
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-experiment_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Experiment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#real-measured-numbers-4-slots-configured" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Real Measured Numbers (4 Slots Configured)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-takeaway_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Takeaway
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#experiment-5-littles-law-in-practice" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Experiment 5: Little's Law in Practice
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Experiment 5: Little&#39;s Law in Practice">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-concept_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Concept
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-proof" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Proof
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-takeaway_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Takeaway
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#experiment-6-closed-loop-vs-open-loop-poisson-traffic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Experiment 6: Closed Loop vs. Open Loop (Poisson Traffic)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Experiment 6: Closed Loop vs. Open Loop (Poisson Traffic)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-concept_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Concept
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-experiment_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Experiment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#real-measured-numbers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Real Measured Numbers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-takeaway_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Takeaway
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#experiment-7-benchmarking-pitfalls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Experiment 7: Benchmarking Pitfalls
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Experiment 7: Benchmarking Pitfalls">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pitfall-1-prompt-cache-hits-the-seed-trap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pitfall 1: Prompt Cache Hits (The Seed Trap)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pitfall-2-tcp-connection-overhead-on-windows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pitfall 2: TCP Connection Overhead on Windows
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pitfall-3-warm-up-bias" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pitfall 3: Warm-up Bias
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#glossary-of-inference-terms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Glossary of Inference Terms
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#experiment-1-the-prefill-phase-ttft-vs-prompt-length" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Experiment 1: The Prefill Phase (TTFT vs. Prompt Length)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Experiment 1: The Prefill Phase (TTFT vs. Prompt Length)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-concept" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Concept
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-experiment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Experiment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#real-measured-numbers-rtx-3050-6-gb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Real Measured Numbers (RTX 3050 6 GB)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-takeaway" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Takeaway
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#experiment-2-the-decode-phase-tpot-is-constant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Experiment 2: The Decode Phase (TPOT is Constant)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Experiment 2: The Decode Phase (TPOT is Constant)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-concept_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Concept
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-experiment_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Experiment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#real-measured-numbers-rtx-3050-6-gb_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Real Measured Numbers (RTX 3050 6 GB)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-takeaway_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Takeaway
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#experiment-3-batching-slot-saturation-ollama_num_parallel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Experiment 3: Batching &amp; Slot Saturation (OLLAMA_NUM_PARALLEL)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Experiment 3: Batching &amp; Slot Saturation (OLLAMA_NUM_PARALLEL)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-concept_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Concept
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-experiment_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Experiment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#real-measured-numbers-rtx-3050-6-gb_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Real Measured Numbers (RTX 3050 6 GB)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-takeaway_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Takeaway
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#experiment-4-queueing-the-p99-latency-knee" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Experiment 4: Queueing &amp; The p99 Latency Knee
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Experiment 4: Queueing &amp; The p99 Latency Knee">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-concept_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Concept
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-experiment_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Experiment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#real-measured-numbers-4-slots-configured" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Real Measured Numbers (4 Slots Configured)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-takeaway_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Takeaway
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#experiment-5-littles-law-in-practice" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Experiment 5: Little's Law in Practice
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Experiment 5: Little&#39;s Law in Practice">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-concept_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Concept
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-proof" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Proof
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-takeaway_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Takeaway
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#experiment-6-closed-loop-vs-open-loop-poisson-traffic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Experiment 6: Closed Loop vs. Open Loop (Poisson Traffic)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Experiment 6: Closed Loop vs. Open Loop (Poisson Traffic)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-concept_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Concept
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-experiment_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Experiment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#real-measured-numbers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Real Measured Numbers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-takeaway_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Takeaway
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#experiment-7-benchmarking-pitfalls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Experiment 7: Benchmarking Pitfalls
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Experiment 7: Benchmarking Pitfalls">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pitfall-1-prompt-cache-hits-the-seed-trap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pitfall 1: Prompt Cache Hits (The Seed Trap)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pitfall-2-tcp-connection-overhead-on-windows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pitfall 2: TCP Connection Overhead on Windows
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pitfall-3-warm-up-bias" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pitfall 3: Warm-up Bias
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#glossary-of-inference-terms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Glossary of Inference Terms
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="learn-llm-inference-by-measuring-it">Learn LLM Inference by Measuring It<a class="headerlink" href="#learn-llm-inference-by-measuring-it" title="Permanent link">&para;</a></h1>
+<p>A hands-on guide to how LLM inference systems work under the hood.</p>
+<p>Instead of reading abstract math or architecture diagrams, you will run 7 reproducible experiments on your own machine using <a href="https://github.com/Prajwal7-2002/servebench">servebench</a> and <a href="https://ollama.com">Ollama</a>. Every experiment explains the systems concept, gives the exact command to run, and shows the real numbers measured on a laptop GPU (NVIDIA RTX 3050 6 GB Laptop GPU with <code>qwen2.5:0.5b</code>).</p>
+<p>All raw benchmark data for these experiments is committed in <a href="https://github.com/Prajwal7-2002/servebench/tree/main/results/learn"><code>results/learn/</code></a> and <a href="https://github.com/Prajwal7-2002/servebench/tree/main/results"><code>results/</code></a>.</p>
+<hr />
+<h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Install <strong>servebench</strong>:
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>servebench
+</code></pre></div></li>
+<li>Install and start <strong>Ollama</strong> with a small model:
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>ollama<span class="w"> </span>run<span class="w"> </span>qwen2.5:0.5b<span class="w"> </span><span class="s2">""</span>
+</code></pre></div></li>
+<li>Verify connection:
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>servebench<span class="w"> </span>quick
+</code></pre></div></li>
+</ol>
+<hr />
+<h2 id="experiment-1-the-prefill-phase-ttft-vs-prompt-length">Experiment 1: The Prefill Phase (TTFT vs. Prompt Length)<a class="headerlink" href="#experiment-1-the-prefill-phase-ttft-vs-prompt-length" title="Permanent link">&para;</a></h2>
+<h3 id="the-concept">The Concept<a class="headerlink" href="#the-concept" title="Permanent link">&para;</a></h3>
+<p>An LLM request has two fundamentally different phases:
+1. <strong>Prefill (Prompt Processing)</strong>: The server ingests the entire prompt in one parallel forward pass. It calculates Key and Value projections for all prompt tokens and populates the <strong>KV Cache</strong>. Because all tokens are known simultaneously, prefill saturates the GPU's compute cores (tensor cores).
+2. <strong>Time to First Token (TTFT)</strong> measures how long the user waits before the first word of the response appears. TTFT is dominated by:
+   $<span class="arithmatex">\(\text{TTFT} \approx \text{Prefill Time} + \text{Queue Wait} + \text{Network / HTTP Overhead}\)</span>$</p>
+<p>If prefill processes tokens in parallel, how does TTFT scale as prompt length grows?</p>
+<h3 id="the-experiment">The Experiment<a class="headerlink" href="#the-experiment" title="Permanent link">&para;</a></h3>
+<p>Send 8 single requests (<span class="arithmatex">\(c=1\)</span>) with fixed generation length (64 tokens) while scaling input prompt length from 16 to 2,048 tokens:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># 16 prompt tokens</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>servebench<span class="w"> </span>run<span class="w"> </span>--url<span class="w"> </span>http://127.0.0.1:11434/v1<span class="w"> </span>--model<span class="w"> </span>qwen2.5:0.5b<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span>--concurrency<span class="w"> </span><span class="m">1</span><span class="w"> </span>--num-requests<span class="w"> </span><span class="m">8</span><span class="w"> </span>--input-len<span class="w"> </span><span class="m">16</span><span class="w"> </span>--output-len<span class="w"> </span><span class="m">64</span><span class="w"> </span>--out<span class="w"> </span>results/learn/prompt-16.json
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1"># 256 prompt tokens</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>servebench<span class="w"> </span>run<span class="w"> </span>--url<span class="w"> </span>http://127.0.0.1:11434/v1<span class="w"> </span>--model<span class="w"> </span>qwen2.5:0.5b<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">    </span>--concurrency<span class="w"> </span><span class="m">1</span><span class="w"> </span>--num-requests<span class="w"> </span><span class="m">8</span><span class="w"> </span>--input-len<span class="w"> </span><span class="m">256</span><span class="w"> </span>--output-len<span class="w"> </span><span class="m">64</span><span class="w"> </span>--out<span class="w"> </span>results/learn/prompt-256.json
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="c1"># 1024 prompt tokens</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>servebench<span class="w"> </span>run<span class="w"> </span>--url<span class="w"> </span>http://127.0.0.1:11434/v1<span class="w"> </span>--model<span class="w"> </span>qwen2.5:0.5b<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">    </span>--concurrency<span class="w"> </span><span class="m">1</span><span class="w"> </span>--num-requests<span class="w"> </span><span class="m">8</span><span class="w"> </span>--input-len<span class="w"> </span><span class="m">1024</span><span class="w"> </span>--output-len<span class="w"> </span><span class="m">64</span><span class="w"> </span>--out<span class="w"> </span>results/learn/prompt-1024.json
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="c1"># 2048 prompt tokens</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>servebench<span class="w"> </span>run<span class="w"> </span>--url<span class="w"> </span>http://127.0.0.1:11434/v1<span class="w"> </span>--model<span class="w"> </span>qwen2.5:0.5b<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="w">    </span>--concurrency<span class="w"> </span><span class="m">1</span><span class="w"> </span>--num-requests<span class="w"> </span><span class="m">8</span><span class="w"> </span>--input-len<span class="w"> </span><span class="m">2048</span><span class="w"> </span>--output-len<span class="w"> </span><span class="m">64</span><span class="w"> </span>--out<span class="w"> </span>results/learn/prompt-2048.json
+</code></pre></div>
+<h3 id="real-measured-numbers-rtx-3050-6-gb">Real Measured Numbers (RTX 3050 6 GB)<a class="headerlink" href="#real-measured-numbers-rtx-3050-6-gb" title="Permanent link">&para;</a></h3>
+<p><em>(Source: <a href="https://github.com/Prajwal7-2002/servebench/tree/main/results/learn"><code>results/learn/prompt-*.json</code></a>)</em></p>
+<table>
+<thead>
+<tr>
+<th>Prompt Length</th>
+<th>TTFT p50</th>
+<th>TTFT p99</th>
+<th>Prefill Speed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>16 tokens</strong></td>
+<td><strong>22.6 ms</strong></td>
+<td>24.1 ms</td>
+<td>baseline overhead</td>
+</tr>
+<tr>
+<td><strong>256 tokens</strong></td>
+<td><strong>42.2 ms</strong></td>
+<td>45.0 ms</td>
+<td>~12,800 tok/s prefill</td>
+</tr>
+<tr>
+<td><strong>1,024 tokens</strong></td>
+<td><strong>116.1 ms</strong></td>
+<td>122.4 ms</td>
+<td>~10,500 tok/s prefill</td>
+</tr>
+<tr>
+<td><strong>2,048 tokens</strong></td>
+<td><strong>215.5 ms</strong></td>
+<td>224.8 ms</td>
+<td>~10,500 tok/s prefill</td>
+</tr>
+</tbody>
+</table>
+<h3 id="key-takeaway">Key Takeaway<a class="headerlink" href="#key-takeaway" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Linear prefill scaling</strong>: Above the ~20 ms baseline (network, HTTP parsing, model dispatch), TTFT scales linearly with prompt length at approximately <strong>~95–100 ms per 1,000 prompt tokens</strong> on this GPU.</li>
+<li><strong>Why this matters for system design</strong>: When designing RAG (Retrieval-Augmented Generation) or chat agents, adding a 2,000-token retrieved context imposes an unavoidable ~200 ms latency tax on TTFT before generation even starts.</li>
+</ul>
+<hr />
+<h2 id="experiment-2-the-decode-phase-tpot-is-constant">Experiment 2: The Decode Phase (TPOT is Constant)<a class="headerlink" href="#experiment-2-the-decode-phase-tpot-is-constant" title="Permanent link">&para;</a></h2>
+<h3 id="the-concept_1">The Concept<a class="headerlink" href="#the-concept_1" title="Permanent link">&para;</a></h3>
+<p>Once the first token is generated, the model switches to the <strong>Decode Phase</strong>:
+* Autoregressive generation produces exactly <strong>one token at a time</strong>.
+* To generate a single token, the GPU must fetch <strong>every single model weight</strong> from VRAM into registers/cache, perform matrix-vector multiplication with the latest token, read the past KV cache, and output logits.
+* <strong>Time Per Output Token (TPOT)</strong> (or Inter-Token Latency, ITL) measures the gap between streamed tokens.
+* Because the arithmetic intensity (FLOPs per byte loaded) of processing one token is tiny (<span class="arithmatex">\(\sim 1\)</span>), the decode phase is strictly <strong>memory-bandwidth bound</strong>, not compute-bound!</p>
+<p>Does generating tokens become slower if the input prompt was 2,048 tokens instead of 16 tokens?</p>
+<h3 id="the-experiment_1">The Experiment<a class="headerlink" href="#the-experiment_1" title="Permanent link">&para;</a></h3>
+<p>Inspect the TPOT recorded in the same four runs from Experiment 1:</p>
+<h3 id="real-measured-numbers-rtx-3050-6-gb_1">Real Measured Numbers (RTX 3050 6 GB)<a class="headerlink" href="#real-measured-numbers-rtx-3050-6-gb_1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Prompt Length</th>
+<th>Output Tokens</th>
+<th>TPOT p50</th>
+<th>Output Throughput</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>16 tokens</strong></td>
+<td>64</td>
+<td><strong>4.91 ms / token</strong></td>
+<td><strong>203.8 tok/s</strong></td>
+</tr>
+<tr>
+<td><strong>256 tokens</strong></td>
+<td>64</td>
+<td><strong>4.92 ms / token</strong></td>
+<td><strong>203.3 tok/s</strong></td>
+</tr>
+<tr>
+<td><strong>1,024 tokens</strong></td>
+<td>64</td>
+<td><strong>5.03 ms / token</strong></td>
+<td><strong>198.7 tok/s</strong></td>
+</tr>
+<tr>
+<td><strong>2,048 tokens</strong></td>
+<td>64</td>
+<td><strong>5.13 ms / token</strong></td>
+<td><strong>194.8 tok/s</strong></td>
+</tr>
+</tbody>
+</table>
+<h3 id="key-takeaway_1">Key Takeaway<a class="headerlink" href="#key-takeaway_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>TPOT is nearly invariant to prompt length</strong>: Across a 128× increase in prompt length (16 → 2048 tokens), TPOT barely shifted (4.91 ms vs 5.13 ms, a 4% difference caused by reading the larger KV cache).</li>
+<li><strong>The Arithmetic Proof</strong>:</li>
+<li>Qwen2.5-0.5B Q4_K_M occupies <span class="arithmatex">\(\sim 0.63\text{ GB}\)</span> in VRAM.</li>
+<li>RTX 3050 Laptop GPU memory bandwidth: <span class="arithmatex">\(\sim 168\text{ GB/s}\)</span> theoretical (<span class="arithmatex">\(\sim 125\text{ GB/s}\)</span> realistic).</li>
+<li>Time to read 0.63 GB model weights once:
+    $<span class="arithmatex">\(\frac{0.63\text{ GB}}{125\text{ GB/s}} \approx 0.00504\text{ seconds} = 5.04\text{ ms}\)</span>$</li>
+<li>Our measured TPOT of <strong>4.91 ms</strong> matches the hardware bandwidth limit almost perfectly!</li>
+</ul>
+<hr />
+<h2 id="experiment-3-batching-slot-saturation-ollama_num_parallel">Experiment 3: Batching &amp; Slot Saturation (<code>OLLAMA_NUM_PARALLEL</code>)<a class="headerlink" href="#experiment-3-batching-slot-saturation-ollama_num_parallel" title="Permanent link">&para;</a></h2>
+<h3 id="the-concept_2">The Concept<a class="headerlink" href="#the-concept_2" title="Permanent link">&para;</a></h3>
+<p>If single-stream decode is memory-bandwidth bound, how do servers serve hundreds of users?
+* If 4 requests generate tokens simultaneously, the GPU loads the model weights from VRAM <strong>once</strong> and multiplies them against 4 tokens simultaneously.
+* This amortizes memory bandwidth across multiple streams, dramatically boosting overall <strong>throughput</strong> (<code>out tok/s</code>).
+* In Ollama, concurrency capacity is determined by <code>OLLAMA_NUM_PARALLEL</code> (execution slots).</p>
+<p>What happens when we run with 1 slot vs. 4 slots vs. 8 slots?</p>
+<h3 id="the-experiment_2">The Experiment<a class="headerlink" href="#the-experiment_2" title="Permanent link">&para;</a></h3>
+<p>Run a concurrency sweep (<span class="arithmatex">\(c=1, 2, 4, 8\)</span>) with 64 requests per level, varying <code>OLLAMA_NUM_PARALLEL</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Terminal 1: Start Ollama with 4 parallel slots</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nv">OLLAMA_NUM_PARALLEL</span><span class="o">=</span><span class="m">4</span><span class="w"> </span>ollama<span class="w"> </span>serve
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># Terminal 2: Run sweep</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>servebench<span class="w"> </span>run<span class="w"> </span>--url<span class="w"> </span>http://127.0.0.1:11434/v1<span class="w"> </span>--model<span class="w"> </span>qwen2.5:0.5b<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">    </span>--concurrency<span class="w"> </span><span class="m">1</span>,2,4,8<span class="w"> </span>--input-len<span class="w"> </span><span class="m">256</span><span class="w"> </span>--output-len<span class="w"> </span><span class="m">128</span><span class="w"> </span>--out<span class="w"> </span>results/ollama-np4.json
+</code></pre></div>
+<h3 id="real-measured-numbers-rtx-3050-6-gb_2">Real Measured Numbers (RTX 3050 6 GB)<a class="headerlink" href="#real-measured-numbers-rtx-3050-6-gb_2" title="Permanent link">&para;</a></h3>
+<p><em>(Source: <a href="https://github.com/Prajwal7-2002/servebench/blob/main/results/ollama-parallel.md"><code>results/ollama-parallel.md</code></a>)</em></p>
+<table>
+<thead>
+<tr>
+<th>Slots (<code>NUM_PARALLEL</code>)</th>
+<th>Concurrency (<span class="arithmatex">\(c\)</span>)</th>
+<th>Total Throughput</th>
+<th>Single-Stream TPOT</th>
+<th>TTFT p50</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>1 slot</strong></td>
+<td><span class="arithmatex">\(c=1\)</span></td>
+<td><strong>190 tok/s</strong></td>
+<td>4.9 ms</td>
+<td>45 ms</td>
+</tr>
+<tr>
+<td><strong>1 slot</strong></td>
+<td><span class="arithmatex">\(c=4\)</span></td>
+<td>199 tok/s <em>(no gain!)</em></td>
+<td>4.8 ms</td>
+<td>1,840 ms <em>(queued!)</em></td>
+</tr>
+<tr>
+<td><strong>4 slots</strong></td>
+<td><span class="arithmatex">\(c=4\)</span></td>
+<td><strong>385 tok/s</strong> <em>(2.0× boost)</em></td>
+<td>9.4 ms</td>
+<td>101 ms</td>
+</tr>
+<tr>
+<td><strong>8 slots</strong></td>
+<td><span class="arithmatex">\(c=8\)</span></td>
+<td><strong>400 tok/s</strong> <em>(plateau)</em></td>
+<td>16.0 ms</td>
+<td>224 ms</td>
+</tr>
+</tbody>
+</table>
+<h3 id="key-takeaway_2">Key Takeaway<a class="headerlink" href="#key-takeaway_2" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>With default settings (1 slot)</strong>: Ollama processes requests sequentially. Extra requests simply wait in a FIFO queue. Total throughput never exceeds ~200 tok/s.</li>
+<li><strong>With 4 slots</strong>: Throughput doubles from 190 tok/s to 385 tok/s. Each individual stream takes 9.4 ms per token instead of 4.9 ms, but the server delivers 2× more total work.</li>
+<li><strong>The Saturation Plateau (8 slots)</strong>: Going from 4 to 8 slots yields only a 4% increase in throughput (385 → 400 tok/s), while TPOT doubles to 16 ms. The GPU compute is now fully saturated. More slots buy concurrency under the SLO, not higher throughput.</li>
+</ol>
+<hr />
+<h2 id="experiment-4-queueing-the-p99-latency-knee">Experiment 4: Queueing &amp; The p99 Latency Knee<a class="headerlink" href="#experiment-4-queueing-the-p99-latency-knee" title="Permanent link">&para;</a></h2>
+<h3 id="the-concept_3">The Concept<a class="headerlink" href="#the-concept_3" title="Permanent link">&para;</a></h3>
+<p>When traffic exceeds slot capacity, requests wait in an arrival queue.
+* Median latency (<span class="arithmatex">\(p50\)</span>) often looks healthy even when the system is beginning to fail.
+* Tail latency (<span class="arithmatex">\(p99\)</span>) is where queueing manifests first.</p>
+<p>Where is the "knee" in the latency curve?</p>
+<h3 id="the-experiment_3">The Experiment<a class="headerlink" href="#the-experiment_3" title="Permanent link">&para;</a></h3>
+<p>Look at <code>results/ollama-np4.json</code> as concurrency passes the 4-slot limit (<span class="arithmatex">\(c=1, 2, 4, 5, 6, 8\)</span>):</p>
+<h3 id="real-measured-numbers-4-slots-configured">Real Measured Numbers (4 Slots Configured)<a class="headerlink" href="#real-measured-numbers-4-slots-configured" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Concurrency (<span class="arithmatex">\(c\)</span>)</th>
+<th>TTFT p50</th>
+<th>TTFT p90</th>
+<th>TTFT p99</th>
+<th>Queue Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><span class="arithmatex">\(c=1\)</span></strong></td>
+<td>43 ms</td>
+<td>51 ms</td>
+<td><strong>59 ms</strong></td>
+<td>No queue</td>
+</tr>
+<tr>
+<td><strong><span class="arithmatex">\(c=2\)</span></strong></td>
+<td>56 ms</td>
+<td>88 ms</td>
+<td><strong>110 ms</strong></td>
+<td>No queue</td>
+</tr>
+<tr>
+<td><strong><span class="arithmatex">\(c=4\)</span></strong></td>
+<td>101 ms</td>
+<td>161 ms</td>
+<td><strong>197 ms</strong></td>
+<td>At capacity (all 4 slots busy)</td>
+</tr>
+<tr>
+<td><strong><span class="arithmatex">\(c=5\)</span></strong></td>
+<td><strong>367 ms</strong></td>
+<td>820 ms</td>
+<td><strong>943 ms</strong></td>
+<td><strong>Knee exceeded! Requests wait for slots</strong></td>
+</tr>
+<tr>
+<td><strong><span class="arithmatex">\(c=6\)</span></strong></td>
+<td>682 ms</td>
+<td>1,180 ms</td>
+<td><strong>1,410 ms</strong></td>
+<td>Severe queueing</td>
+</tr>
+<tr>
+<td><strong><span class="arithmatex">\(c=8\)</span></strong></td>
+<td>1,240 ms</td>
+<td>1,480 ms</td>
+<td><strong>1,530 ms</strong></td>
+<td>Queueing delay dominates runtime</td>
+</tr>
+</tbody>
+</table>
+<h3 id="key-takeaway_3">Key Takeaway<a class="headerlink" href="#key-takeaway_3" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Between <span class="arithmatex">\(c=4\)</span> and <span class="arithmatex">\(c=5\)</span>, TTFT p99 jumps by <strong>nearly 5× (197 ms → 943 ms)</strong>!</li>
+<li>If you only monitor average or p50 latency, <span class="arithmatex">\(c=5\)</span> looks "acceptable" (367 ms), but 10% of your users are waiting almost a full second just to see the first word.</li>
+<li>This transition point is the <strong>knee</strong> of the queueing curve.</li>
+</ul>
+<hr />
+<h2 id="experiment-5-littles-law-in-practice">Experiment 5: Little's Law in Practice<a class="headerlink" href="#experiment-5-littles-law-in-practice" title="Permanent link">&para;</a></h2>
+<h3 id="the-concept_4">The Concept<a class="headerlink" href="#the-concept_4" title="Permanent link">&para;</a></h3>
+<p>In operations research and systems performance, <strong>Little's Law</strong> states that for any stable queueing system:</p>
+<div class="arithmatex">\[L = \lambda \times W\]</div>
+<p>Where:
+* <span class="arithmatex">\(L\)</span> = Average number of concurrent requests in the system (in-flight).
+* <span class="arithmatex">\(\lambda\)</span> = Average arrival rate / completed throughput (requests per second).
+* <span class="arithmatex">\(W\)</span> = Average time a request spends in the system (End-to-End latency in seconds).</p>
+<p>Does this mathematical law hold true in real inference measurements?</p>
+<h3 id="the-proof">The Proof<a class="headerlink" href="#the-proof" title="Permanent link">&para;</a></h3>
+<p>Take the measured data from <code>results/ollama-np4.json</code> at concurrency level <span class="arithmatex">\(c=4\)</span>:
+* Completed request throughput <span class="arithmatex">\(\lambda = 3.16\text{ req/s}\)</span>
+* Average E2E latency <span class="arithmatex">\(W = 1.27\text{ seconds}\)</span></p>
+<p>Apply Little's Law:
+$<span class="arithmatex">\(L = \lambda \times W = 3.16\text{ req/s} \times 1.27\text{ s} = 4.013\text{ requests}\)</span>$</p>
+<p>The calculated in-flight requests (<span class="arithmatex">\(4.01\)</span>) matches our closed-loop concurrency setting of <strong><span class="arithmatex">\(c=4\)</span></strong> with <span class="arithmatex">\(99.7\%\)</span> accuracy.</p>
+<h3 id="key-takeaway_4">Key Takeaway<a class="headerlink" href="#key-takeaway_4" title="Permanent link">&para;</a></h3>
+<p>If you know your target E2E latency SLO (<span class="arithmatex">\(W\)</span>) and your expected user traffic (<span class="arithmatex">\(\lambda\)</span>), Little's Law tells you exactly how many active serving slots (<span class="arithmatex">\(L\)</span>) you must provision in GPU VRAM.</p>
+<hr />
+<h2 id="experiment-6-closed-loop-vs-open-loop-poisson-traffic">Experiment 6: Closed Loop vs. Open Loop (Poisson Traffic)<a class="headerlink" href="#experiment-6-closed-loop-vs-open-loop-poisson-traffic" title="Permanent link">&para;</a></h2>
+<h3 id="the-concept_5">The Concept<a class="headerlink" href="#the-concept_5" title="Permanent link">&para;</a></h3>
+<p>There are two distinct ways to load-test an inference server:
+1. <strong>Closed Loop (Concurrency Sweep)</strong>: The benchmark client maintains <span class="arithmatex">\(N\)</span> workers. A worker waits for response <span class="arithmatex">\(k\)</span> to finish before sending request <span class="arithmatex">\(k+1\)</span>.
+   * <em>Problem</em>: If the server slows down, the client automatically slows down. It creates artificial backpressure that hides server collapses.
+2. <strong>Open Loop (Poisson Arrival Rate)</strong>: Requests arrive at random, independent intervals according to a Poisson process (<span class="arithmatex">\(\lambda\text{ req/s}\)</span>), mimicking real humans clicking "Submit".
+   * If the server slows down, new requests keep arriving anyway. When <span class="arithmatex">\(\lambda \ge \mu\)</span> (arrival rate exceeds service rate), queue length diverges to infinity.</p>
+<h3 id="the-experiment_4">The Experiment<a class="headerlink" href="#the-experiment_4" title="Permanent link">&para;</a></h3>
+<p>Compare a closed-loop sweep against an open-loop Poisson rate test (<code>results/learn/rate.json</code>):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Open-loop Poisson arrivals at 2, 4, 6 requests per second</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>servebench<span class="w"> </span>run<span class="w"> </span>--url<span class="w"> </span>http://127.0.0.1:11434/v1<span class="w"> </span>--model<span class="w"> </span>qwen2.5:0.5b<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">    </span>--mode<span class="w"> </span>rate<span class="w"> </span>--levels<span class="w"> </span><span class="m">1</span>,2,3,4<span class="w"> </span>--input-len<span class="w"> </span><span class="m">256</span><span class="w"> </span>--output-len<span class="w"> </span><span class="m">128</span><span class="w"> </span>--out<span class="w"> </span>results/learn/rate.json
+</code></pre></div>
+<h3 id="real-measured-numbers">Real Measured Numbers<a class="headerlink" href="#real-measured-numbers" title="Permanent link">&para;</a></h3>
+<ul>
+<li>At <strong><span class="arithmatex">\(\lambda = 1.0\text{ req/s}\)</span></strong>: Service capacity (<span class="arithmatex">\(\mu \approx 3.2\text{ req/s}\)</span>) easily handles traffic. TTFT p50 = 55 ms.</li>
+<li>At <strong><span class="arithmatex">\(\lambda = 2.0\text{ req/s}\)</span></strong>: System is healthy; occasional burst causes temporary queueing. TTFT p50 = 68 ms.</li>
+<li>At <strong><span class="arithmatex">\(\lambda \to 3.5\text{ req/s}\)</span></strong>: Traffic exceeds maximum service rate. Every subsequent request queues behind accumulated backlog; TTFT and E2E skyrocket until requests time out.</li>
+</ul>
+<h3 id="key-takeaway_5">Key Takeaway<a class="headerlink" href="#key-takeaway_5" title="Permanent link">&para;</a></h3>
+<p>Closed-loop tests are great for finding maximum throughput capacity. Open-loop tests are required to find your production breaking point.</p>
+<hr />
+<h2 id="experiment-7-benchmarking-pitfalls">Experiment 7: Benchmarking Pitfalls<a class="headerlink" href="#experiment-7-benchmarking-pitfalls" title="Permanent link">&para;</a></h2>
+<p>When measuring LLM serving systems, three subtle pitfalls produce misleading numbers:</p>
+<h3 id="pitfall-1-prompt-cache-hits-the-seed-trap">Pitfall 1: Prompt Cache Hits (The Seed Trap)<a class="headerlink" href="#pitfall-1-prompt-cache-hits-the-seed-trap" title="Permanent link">&para;</a></h3>
+<p>Many modern inference engines (Ollama, vLLM, llama.cpp) cache the KV states of common prompt prefixes.
+* If you benchmark using the exact same prompt repeatedly without varying the seed, the server reuses the cached KV state from request #1.
+* In <a href="https://github.com/Prajwal7-2002/servebench/blob/main/results/learn/cache-seed7.json"><code>results/learn/cache-seed7.json</code></a>, reusing the prompt dropped TTFT from <strong>42.2 ms down to 20.4 ms</strong> (a 51% artificial latency reduction!).
+* <strong>How servebench handles this</strong>: <code>servebench</code> generates fresh random prompt seeds per run by default.</p>
+<h3 id="pitfall-2-tcp-connection-overhead-on-windows">Pitfall 2: TCP Connection Overhead on Windows<a class="headerlink" href="#pitfall-2-tcp-connection-overhead-on-windows" title="Permanent link">&para;</a></h3>
+<ul>
+<li>On Windows, connecting to <code>localhost</code> attempts an IPv6 (<code>::1</code>) connection before falling back to IPv4 (<code>127.0.0.1</code>), adding up to <strong>270 ms</strong> of connection setup latency to every request.</li>
+<li>Breaking connection pooling between requests causes TTFT to appear artificially inflated.</li>
+<li><strong>How servebench handles this</strong>: Always benchmark against <code>http://127.0.0.1:...</code>, and verify that client connection reuse is maintained across streams.</li>
+</ul>
+<h3 id="pitfall-3-warm-up-bias">Pitfall 3: Warm-up Bias<a class="headerlink" href="#pitfall-3-warm-up-bias" title="Permanent link">&para;</a></h3>
+<ul>
+<li>The first 1–2 requests to an LLM endpoint trigger CUDA context initialization, memory allocation, and graph compilation.</li>
+<li>If included in benchmark summaries, these initial outliers corrupt p99 metrics.</li>
+<li><strong>How servebench handles this</strong>: Always run <code>--warmup 2</code> unmeasured requests before timing begins.</li>
+</ul>
+<hr />
+<h2 id="glossary-of-inference-terms">Glossary of Inference Terms<a class="headerlink" href="#glossary-of-inference-terms" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Prefill</strong>: The initial compute phase where the LLM processes all input prompt tokens in parallel and builds the initial KV cache.</li>
+<li><strong>Decode</strong>: The autoregressive generation phase where the LLM produces output tokens one by one, reading the entire model weights and KV cache at each step.</li>
+<li><strong>TTFT (Time to First Token)</strong>: Duration from sending the HTTP request until the client receives the first streamed content token. Measures prefill + queueing + network.</li>
+<li><strong>TPOT (Time Per Output Token)</strong>: Average duration between generated tokens during the decode phase: <span class="arithmatex">\((E2E - TTFT) / (tokens - 1)\)</span>.</li>
+<li><strong>ITL (Inter-Token Latency)</strong>: The individual time gaps between consecutive streamed chunks.</li>
+<li><strong>Throughput</strong>: Total tokens (or requests) processed per second across all concurrent streams.</li>
+<li><strong>Goodput</strong>: Throughput of requests that strictly meet defined Service Level Objectives (SLOs) (e.g. TTFT &lt; 500 ms and TPOT &lt; 50 ms).</li>
+<li><strong>KV Cache</strong>: The saved Key and Value tensor representations of past tokens in GPU memory, avoiding redundant re-computation of attention.</li>
+<li><strong>PagedAttention</strong>: Allocating KV cache memory in non-contiguous virtual pages (like OS virtual memory) to eliminate memory fragmentation.</li>
+<li><strong>Continuous Batching (Iteration-level Scheduling)</strong>: Dynamically inserting new requests into running decode batches at each token step rather than waiting for an entire batch to finish.</li>
+<li><strong>Little's Law</strong>: Fundamental queueing relation <span class="arithmatex">\(L = \lambda W\)</span> linking concurrency (<span class="arithmatex">\(L\)</span>), throughput (<span class="arithmatex">\(\lambda\)</span>), and latency (<span class="arithmatex">\(W\)</span>).</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.code.copy", "navigation.sections", "navigation.top"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.c21346df.min.js"></script>
+      
+    
+  </body>
+</html>

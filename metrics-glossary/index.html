@@ -1,0 +1,1173 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Load-test any OpenAI-compatible LLM endpoint with statistical rigor, hardware telemetry, and automated bottleneck diagnosis.">
+      
+      
+        <meta name="author" content="Prajwal Pujari">
+      
+      
+        <link rel="canonical" href="https://prajwal7-2002.github.io/servebench/metrics-glossary/">
+      
+      
+        <link rel="prev" href="../python-api/">
+      
+      
+        <link rel="next" href="../ci-cd-guide/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+    
+    
+      
+        <title>Metrics & Math - Servebench</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="deep-purple">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#metrics-glossary-mathematical-formulations" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Servebench" class="md-header__button md-logo" aria-label="Servebench" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Servebench
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Metrics & Math
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="deep-purple"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="deep-purple"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/Prajwal7-2002/servebench" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Prajwal7-2002/servebench
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Servebench" class="md-nav__button md-logo" aria-label="Servebench" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Servebench
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Prajwal7-2002/servebench" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Prajwal7-2002/servebench
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metrics & Math
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metrics & Math
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-core-latency-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Core Latency Metrics
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. Core Latency Metrics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#time-to-first-token-ttft" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Time to First Token (TTFT)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#time-per-output-token-tpot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Time Per Output Token (TPOT)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inter-token-latency-itl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inter-Token Latency (ITL)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-server-side-timing-breakdown-p11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Server-Side Timing Breakdown (P11)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-throughput-goodput" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Throughput &amp; Goodput
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Throughput &amp; Goodput">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#output-token-throughput" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Output Token Throughput
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#steady-state-throughput" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Steady-State Throughput
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#goodput" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Goodput
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-hardware-telemetry-energy-efficiency" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Hardware Telemetry &amp; Energy Efficiency
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Hardware Telemetry &amp; Energy Efficiency">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tokens-per-joule-efficiency" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tokens per Joule (Efficiency)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-statistical-aggregations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Statistical Aggregations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. Statistical Aggregations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#order-statistics-percentiles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Order Statistics &amp; Percentiles
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multi-trial-repeat-confidence-intervals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-Trial Repeat Confidence Intervals
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-hardware-roofline-utilization-math" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Hardware Roofline &amp; Utilization Math
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. Hardware Roofline &amp; Utilization Math">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#operational-arithmetic-intensity-i" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operational / Arithmetic Intensity (\(I\))
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ridge-point-i_textridge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ridge Point (\(I_{\text{ridge}}\))
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#memory-bandwidth-utilization-mbu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Memory Bandwidth Utilization (MBU %)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#model-flops-utilization-mfu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model FLOPs Utilization (MFU %)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ci-cd-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CI/CD Regression Gating
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../engines/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engine Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../learn-inference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Learn LLM Inference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-core-latency-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Core Latency Metrics
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. Core Latency Metrics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#time-to-first-token-ttft" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Time to First Token (TTFT)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#time-per-output-token-tpot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Time Per Output Token (TPOT)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inter-token-latency-itl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inter-Token Latency (ITL)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-server-side-timing-breakdown-p11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Server-Side Timing Breakdown (P11)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-throughput-goodput" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Throughput &amp; Goodput
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Throughput &amp; Goodput">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#output-token-throughput" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Output Token Throughput
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#steady-state-throughput" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Steady-State Throughput
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#goodput" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Goodput
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-hardware-telemetry-energy-efficiency" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Hardware Telemetry &amp; Energy Efficiency
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Hardware Telemetry &amp; Energy Efficiency">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tokens-per-joule-efficiency" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tokens per Joule (Efficiency)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-statistical-aggregations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Statistical Aggregations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. Statistical Aggregations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#order-statistics-percentiles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Order Statistics &amp; Percentiles
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multi-trial-repeat-confidence-intervals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-Trial Repeat Confidence Intervals
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-hardware-roofline-utilization-math" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Hardware Roofline &amp; Utilization Math
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. Hardware Roofline &amp; Utilization Math">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#operational-arithmetic-intensity-i" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operational / Arithmetic Intensity (\(I\))
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ridge-point-i_textridge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ridge Point (\(I_{\text{ridge}}\))
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#memory-bandwidth-utilization-mbu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Memory Bandwidth Utilization (MBU %)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#model-flops-utilization-mfu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model FLOPs Utilization (MFU %)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="metrics-glossary-mathematical-formulations">Metrics Glossary &amp; Mathematical Formulations<a class="headerlink" href="#metrics-glossary-mathematical-formulations" title="Permanent link">&para;</a></h1>
+<p>This document provides rigorous mathematical definitions, explanations, and industry significance for all metrics measured by Servebench.</p>
+<hr />
+<h2 id="1-core-latency-metrics">1. Core Latency Metrics<a class="headerlink" href="#1-core-latency-metrics" title="Permanent link">&para;</a></h2>
+<h3 id="time-to-first-token-ttft">Time to First Token (TTFT)<a class="headerlink" href="#time-to-first-token-ttft" title="Permanent link">&para;</a></h3>
+<p>The duration from the moment the client dispatches the HTTP request to the moment the first non-empty content chunk is parsed.</p>
+<div class="arithmatex">\[\text{TTFT} = t_{\text{first chunk}} - t_{\text{send}}\]</div>
+<ul>
+<li><strong>Units</strong>: seconds / milliseconds.</li>
+<li><strong>Components</strong>: Client network transit + Server queue wait + Engine prompt prefill compute.</li>
+<li><strong>Significance</strong>: Determines the perceived responsiveness of interactive chat applications.</li>
+</ul>
+<h3 id="time-per-output-token-tpot">Time Per Output Token (TPOT)<a class="headerlink" href="#time-per-output-token-tpot" title="Permanent link">&para;</a></h3>
+<p>The average duration required to generate each token after the first token arrives.</p>
+<div class="arithmatex">\[\text{TPOT} = \frac{\text{E2E Latency} - \text{TTFT}}{\text{Output Tokens} - 1}\]</div>
+<ul>
+<li><strong>Units</strong>: milliseconds / seconds per token.</li>
+<li><strong>Significance</strong>: Determines reading speed. Human reading speed is approximately 20–30 ms/token (30–50 tokens/s).</li>
+</ul>
+<h3 id="inter-token-latency-itl">Inter-Token Latency (ITL)<a class="headerlink" href="#inter-token-latency-itl" title="Permanent link">&para;</a></h3>
+<p>The sequence of elapsed durations between consecutive content chunks arriving over the streaming Server-Sent Events (SSE) connection:</p>
+<div class="arithmatex">\[\text{ITL}_i = t_{i} - t_{i-1}\]</div>
+<ul>
+<li><strong>Significance</strong>: While TPOT measures overall generation speed, ITL percentiles (p50, p90, p99) measure smooth token pacing and detect generation stuttering.</li>
+</ul>
+<hr />
+<h2 id="2-server-side-timing-breakdown-p11">2. Server-Side Timing Breakdown (P11)<a class="headerlink" href="#2-server-side-timing-breakdown-p11" title="Permanent link">&para;</a></h2>
+<p>When using engines like llama.cpp or Ollama that report internal phase durations, Servebench breaks TTFT into:
+1. <strong>Server Prefill</strong>: Time the GPU spent evaluating input prompt tokens.
+2. <strong>Server Decode</strong>: Time the GPU spent generating output tokens.
+3. <strong>Queue &amp; Network Overhead</strong>:
+   $<span class="arithmatex">\(\text{Queue/Network Overhead} = \text{Client TTFT} - \text{Server Prefill}\)</span>$</p>
+<ul>
+<li><strong>Significance</strong>: If client TTFT is 200 ms and Server Prefill is only 25 ms, requests are spending 175 ms waiting in line for an available KV cache slot.</li>
+</ul>
+<hr />
+<h2 id="3-throughput-goodput">3. Throughput &amp; Goodput<a class="headerlink" href="#3-throughput-goodput" title="Permanent link">&para;</a></h2>
+<h3 id="output-token-throughput">Output Token Throughput<a class="headerlink" href="#output-token-throughput" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[\text{Output Throughput} = \frac{\sum_{i=1}^N \text{Output Tokens}_i}{\text{Wall Duration}}\]</div>
+<ul>
+<li><strong>Units</strong>: tokens per second (<code>tok/s</code>).</li>
+</ul>
+<h3 id="steady-state-throughput">Steady-State Throughput<a class="headerlink" href="#steady-state-throughput" title="Permanent link">&para;</a></h3>
+<p>Throughput calculated over a stable time window that excludes the initial connection warm-up ramp-up and late draining tail.</p>
+<h3 id="goodput">Goodput<a class="headerlink" href="#goodput" title="Permanent link">&para;</a></h3>
+<p>The rate of completed tokens delivered by requests that satisfied <strong>both</strong> target latency Service Level Objectives (SLOs):</p>
+<div class="arithmatex">\[\text{Goodput} = \frac{\sum_{i \in \text{In-SLO}} \text{Output Tokens}_i}{\text{Wall Duration}}\]</div>
+<p>where request <span class="arithmatex">\(i\)</span> is in-SLO if:
+$<span class="arithmatex">\(\text{TTFT}_i \le \text{SLO}_{\text{TTFT}} \quad \text{and} \quad \text{TPOT}_i \le \text{SLO}_{\text{TPOT}}\)</span>$</p>
+<hr />
+<h2 id="4-hardware-telemetry-energy-efficiency">4. Hardware Telemetry &amp; Energy Efficiency<a class="headerlink" href="#4-hardware-telemetry-energy-efficiency" title="Permanent link">&para;</a></h2>
+<h3 id="tokens-per-joule-efficiency">Tokens per Joule (Efficiency)<a class="headerlink" href="#tokens-per-joule-efficiency" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[\text{Tokens per Joule} = \frac{\text{Output Throughput (tok/s)}}{\text{Average GPU Power (W)}} = \frac{\text{Total Output Tokens}}{\text{Total Energy Consumed (Joules)}}\]</div>
+<ul>
+<li><strong>Units</strong>: tokens per Joule.</li>
+<li><strong>Significance</strong>: Crucial for comparing models across quantization levels (e.g. FP16 vs INT4) and assessing datacenter operational costs.</li>
+</ul>
+<hr />
+<h2 id="5-statistical-aggregations">5. Statistical Aggregations<a class="headerlink" href="#5-statistical-aggregations" title="Permanent link">&para;</a></h2>
+<h3 id="order-statistics-percentiles">Order Statistics &amp; Percentiles<a class="headerlink" href="#order-statistics-percentiles" title="Permanent link">&para;</a></h3>
+<p>For any timing distribution, percentiles (p50, p90, p99) are computed via nearest-rank interpolation.</p>
+<blockquote>
+<p><strong>Statistical Warning:</strong> When sample size <span class="arithmatex">\(N &lt; 100\)</span>, computing p99 is mathematically bounded by the sample maximum. Servebench reports sample count <span class="arithmatex">\(N\)</span> alongside all percentiles and issues a warning if <span class="arithmatex">\(N &lt; 100\)</span>.</p>
+</blockquote>
+<h3 id="multi-trial-repeat-confidence-intervals">Multi-Trial Repeat Confidence Intervals<a class="headerlink" href="#multi-trial-repeat-confidence-intervals" title="Permanent link">&para;</a></h3>
+<p>When <code>--repeat N</code> is specified, each load level is executed across <span class="arithmatex">\(N\)</span> independent runs with fresh seeds. Servebench computes sample mean <span class="arithmatex">\(\bar{x}\)</span>, sample standard deviation <span class="arithmatex">\(s\)</span>, and two-tailed Student's t 95% confidence intervals:</p>
+<div class="arithmatex">\[\text{CI}_{95\%} = \bar{x} \pm t_{0.025, N-1} \times \frac{s}{\sqrt{N}}\]</div>
+<hr />
+<h2 id="6-hardware-roofline-utilization-math">6. Hardware Roofline &amp; Utilization Math<a class="headerlink" href="#6-hardware-roofline-utilization-math" title="Permanent link">&para;</a></h2>
+<h3 id="operational-arithmetic-intensity-i">Operational / Arithmetic Intensity (<span class="arithmatex">\(I\)</span>)<a class="headerlink" href="#operational-arithmetic-intensity-i" title="Permanent link">&para;</a></h3>
+<p>The ratio of floating point operations performed per byte of memory transferred from DRAM/HBM:</p>
+<div class="arithmatex">\[I = \frac{\text{Floating Point Operations (FLOP)}}{\text{DRAM Memory Transferred (Bytes)}} \quad [\text{FLOP/Byte}]\]</div>
+<ul>
+<li><strong>Decode Phase</strong>: Each autoregressively generated token accesses all model weights once (<span class="arithmatex">\(2P\)</span> FLOPs per parameter, reading <span class="arithmatex">\(P \times \text{Bytes/Param}\)</span>). At batch size <span class="arithmatex">\(c=1\)</span>, intensity is <span class="arithmatex">\(\approx 1.0\text{ FLOP/Byte}\)</span> (FP16) or <span class="arithmatex">\(\approx 4.0\text{ FLOP/Byte}\)</span> (INT4).</li>
+<li><strong>Batching Amortization</strong>: As batch size <span class="arithmatex">\(c\)</span> increases, weights are reused across <span class="arithmatex">\(c\)</span> tokens, scaling arithmetic intensity <span class="arithmatex">\(I \approx c \times I_1\)</span>.</li>
+</ul>
+<h3 id="ridge-point-i_textridge">Ridge Point (<span class="arithmatex">\(I_{\text{ridge}}\)</span>)<a class="headerlink" href="#ridge-point-i_textridge" title="Permanent link">&para;</a></h3>
+<p>The critical arithmetic intensity where hardware performance transitions from being memory-bandwidth-bound to compute-bound:</p>
+<div class="arithmatex">\[I_{\text{ridge}} = \frac{\text{Peak Compute Ceiling (FLOP/s)}}{\text{Peak Memory Bandwidth (Bytes/s)}} \quad [\text{FLOP/Byte}]\]</div>
+<ul>
+<li>If operational intensity <span class="arithmatex">\(I &lt; I_{\text{ridge}}\)</span>, the workload is <strong>Memory-Bandwidth Bound</strong>.</li>
+<li>If operational intensity <span class="arithmatex">\(I \ge I_{\text{ridge}}\)</span>, the workload is <strong>Compute Bound</strong>.</li>
+</ul>
+<h3 id="memory-bandwidth-utilization-mbu">Memory Bandwidth Utilization (MBU %)<a class="headerlink" href="#memory-bandwidth-utilization-mbu" title="Permanent link">&para;</a></h3>
+<p>The fraction of theoretical memory bus throughput achieved by weight streaming during decode:</p>
+<div class="arithmatex">\[\text{MBU} = \frac{\text{Achieved Memory Bandwidth}}{\text{Peak Hardware Memory Bandwidth}} \times 100\%\]</div>
+<p>where:
+$<span class="arithmatex">\(\text{Achieved Memory Bandwidth (GB/s)} = \frac{\text{Decode Tokens/s}}{c} \times \text{Model Size (GB)}\)</span>$</p>
+<h3 id="model-flops-utilization-mfu">Model FLOPs Utilization (MFU %)<a class="headerlink" href="#model-flops-utilization-mfu" title="Permanent link">&para;</a></h3>
+<p>The fraction of theoretical peak matrix tensor compute utilized by GEMM operations:</p>
+<div class="arithmatex">\[\text{MFU} = \frac{\text{Achieved TFLOPs}}{\text{Peak Hardware TFLOPs}} \times 100\%\]</div>
+<p>where achieved decode TFLOPs is:
+$<span class="arithmatex">\(\text{Achieved TFLOPs} = \frac{\text{Tokens/s} \times 2 \times \text{Param Count}}{10^{12}}\)</span>$</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.code.copy", "navigation.sections", "navigation.top"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.c21346df.min.js"></script>
+      
+    
+  </body>
+</html>
