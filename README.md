@@ -31,10 +31,13 @@ No GPU or engine install is needed on the client: it is one async Python process
 
 Install from PyPI:
 ```bash
+# Via pip
 pip install servebench
-```
-Or with [uv](https://docs.astral.sh/uv/):
-```bash
+
+# Or via uv
+uv add servebench
+
+# Or install as an isolated CLI tool with uv
 uv tool install servebench
 ```
 

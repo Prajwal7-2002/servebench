@@ -21,7 +21,7 @@ The average duration required to generate each token after the first token arriv
 $$\text{TPOT} = \frac{\text{E2E Latency} - \text{TTFT}}{\text{Output Tokens} - 1}$$
 
 - **Units**: milliseconds / seconds per token.
-- **Significance**: Determines reading speed. Human reading speed is approximately $20-30\text{ ms/token}$ ($30-50\text{ tokens/s}$).
+- **Significance**: Determines reading speed. Human reading speed is approximately 20–30 ms/token (30–50 tokens/s).
 
 ### Inter-Token Latency (ITL)
 The sequence of elapsed durations between consecutive content chunks arriving over the streaming Server-Sent Events (SSE) connection:
