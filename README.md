@@ -124,7 +124,7 @@ assert report.passed, "Serving latency regressed!"
 
 Analyze whether your LLM serving bottleneck is **Memory-Bandwidth Bound** (typical during token generation / decode) or **Compute Bound** (large-batch prefill), and calculate your exact hardware utilization:
 
-- **MBU (Memory Bandwidth Utilization %)**: Percentage of theoretical memory bus throughput achieved reading model weights ($\text{tok/s} \times \text{model\_bytes} / \text{bus\_bw}$).
+- **MBU (Memory Bandwidth Utilization %)**: Percentage of theoretical memory bus throughput achieved reading model weights ($\text{tok/s} \times \text{model bytes} / \text{bus bandwidth}$).
 - **MFU (Model FLOPs Utilization %)**: Percentage of theoretical peak FP16/BF16 TFLOPs achieved by GEMM matrix operations.
 - Built-in hardware specs database: NVIDIA RTX 3050–4090, A100, H100, T4, and Apple Silicon M-series.
 
