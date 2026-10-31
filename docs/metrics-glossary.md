@@ -9,7 +9,7 @@ This document provides rigorous mathematical definitions, explanations, and indu
 ### Time to First Token (TTFT)
 The duration from the moment the client dispatches the HTTP request to the moment the first non-empty content chunk is parsed.
 
-$$\text{TTFT} = t_{\text{first\_content\_chunk}} - t_{\text{send}}$$
+$$\text{TTFT} = t_{\text{first chunk}} - t_{\text{send}}$$
 
 - **Units**: seconds / milliseconds.
 - **Components**: Client network transit + Server queue wait + Engine prompt prefill compute.
