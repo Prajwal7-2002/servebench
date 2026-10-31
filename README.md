@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./assets/banner.svg" alt="servebench banner" width="100%">
+</p>
+
 # servebench
 
 [![PyPI](https://img.shields.io/pypi/v/servebench.svg?color=blue)](https://pypi.org/project/servebench/)
