@@ -120,6 +120,23 @@ report = servebench.check_regression("candidate.json", "baseline.json")
 assert report.passed, "Serving latency regressed!"
 ```
 
+## Share your result with RunsOnMine (`servebench submit`)
+
+[RunsOnMine](https://github.com/Prajwal7-2002/runsonmine) collects *measured* local LLM speeds from
+real machines, so people can see what runs well on their hardware. To add yours, start a model in
+Ollama, llama.cpp or LM Studio (plugged in, not on battery) and run:
+
+```bash
+servebench submit
+```
+
+It runs the standard test (1, 2 and 4 users, 16 requests each, 256-token prompts, 128 output
+tokens), records the engine-reported model size and quantization plus the run conditions (AC or
+battery, GPU clock and power limit), prints the whole result and saves it as
+`runsonmine-<engine>-<model>.json`. The file contains no hostname, username, IP address, URL, path
+or prompt text (a test enforces this). Open a pull request adding it to RunsOnMine's
+`data/results/`.
+
 ## Hardware Roofline Analysis (`servebench roofline`)
 
 Analyze whether your LLM serving bottleneck is **Memory-Bandwidth Bound** (typical during token generation / decode) or **Compute Bound** (large-batch prefill), and calculate your exact hardware utilization:

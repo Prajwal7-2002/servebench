@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.5] - 2026-11-06
+
+### Added
+- **`servebench submit`**: runs the standard RunsOnMine test (1/2/4 users, 16 requests per level,
+  256-token prompts, 128 output tokens, seed 1) against a server on this machine and saves a
+  shareable result in the RunsOnMine result v1 format. Records engine-reported model facts, power
+  source (AC/battery), GPU clock and power limit; contains no hostname, username, IP, URL, path or
+  prompt text (enforced by a test). Remote servers are refused.
+
+### Changed
+- `quick` and `submit` share one helper for finding the local server and model.
+
 ## [1.1.4] - 2026-11-05
 
 ### Fixed
