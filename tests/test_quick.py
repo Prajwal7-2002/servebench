@@ -117,8 +117,10 @@ def test_find_stall():
 
 
 def test_quick_end_to_end_on_mock_server(server, tmp_path):
-    # TTFT = 40 ms x requests in flight; with a 150 ms target, 3 users pass and 4 fail
-    server.cfg.ttft, server.cfg.itl, server.cfg.slowdown = 0.04, 0.002, 1.0
+    # TTFT = 200 ms x requests in flight; with a 700 ms target, 3 users (600 ms) pass and
+    # 4 users (800 ms) fail. The 100 ms margin on each side absorbs slow CI runners: with
+    # 40 ms steps and a 150 ms target, a 30 ms hiccup on macOS turned 3 users into 2.
+    server.cfg.ttft, server.cfg.itl, server.cfg.slowdown = 0.2, 0.002, 1.0
     out = tmp_path / "q.json"
     res = CliRunner().invoke(
         app,
@@ -129,7 +131,7 @@ def test_quick_end_to_end_on_mock_server(server, tmp_path):
             "--max",
             "8",
             "--slo-ttft-ms",
-            "150",
+            "700",
             "--slo-tpot-ms",
             "1000",
             "--out",
