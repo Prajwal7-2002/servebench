@@ -27,19 +27,24 @@ class GPUSpec:
     vram_gb: float
 
 
-# Common GPU reference specs (Memory Bandwidth in GB/s, Peak FP16/BF16 Tensor TFLOPs)
+# Common GPU reference specs: peak memory bandwidth (GB/s) and peak *dense* FP16/BF16
+# Tensor Core TFLOPS (FP16 accumulate, no 2:4 sparsity). Laptop memory clocks vary by
+# maker: pass --gpu-mem-bw with your real value (nvidia-smi clocks.max.memory) if needed.
+# Matching uses the longest key found in the device name.
 KNOWN_GPUS: dict[str, GPUSpec] = {
-    "rtx 3050": GPUSpec("RTX 3050 Laptop", 192.0, 36.4, 6.0),
+    "rtx 3050 6gb laptop": GPUSpec("RTX 3050 6GB Laptop", 168.0, 24.0, 6.0),
+    "rtx 3050 laptop": GPUSpec("RTX 3050 Laptop (4GB)", 192.0, 24.0, 4.0),
+    "rtx 3050": GPUSpec("RTX 3050 (desktop)", 224.0, 36.4, 8.0),
     "rtx 3060": GPUSpec("RTX 3060", 360.0, 51.2, 12.0),
     "rtx 3070": GPUSpec("RTX 3070", 448.0, 81.3, 8.0),
     "rtx 3080": GPUSpec("RTX 3080", 760.0, 119.0, 10.0),
     "rtx 3090": GPUSpec("RTX 3090", 936.0, 142.0, 24.0),
-    "rtx 4050": GPUSpec("RTX 4050 Laptop", 192.0, 90.0, 6.0),
-    "rtx 4060": GPUSpec("RTX 4060", 272.0, 121.0, 8.0),
-    "rtx 4070 ti": GPUSpec("RTX 4070 Ti", 504.0, 240.0, 12.0),
-    "rtx 4070": GPUSpec("RTX 4070", 504.0, 184.0, 12.0),
-    "rtx 4080 super": GPUSpec("RTX 4080 Super", 736.0, 260.0, 16.0),
-    "rtx 4080": GPUSpec("RTX 4080", 717.0, 242.0, 16.0),
+    "rtx 4050": GPUSpec("RTX 4050 Laptop", 192.0, 48.0, 6.0),
+    "rtx 4060": GPUSpec("RTX 4060", 272.0, 60.0, 8.0),
+    "rtx 4070 ti": GPUSpec("RTX 4070 Ti", 504.0, 160.0, 12.0),
+    "rtx 4070": GPUSpec("RTX 4070", 504.0, 117.0, 12.0),
+    "rtx 4080 super": GPUSpec("RTX 4080 Super", 736.0, 209.0, 16.0),
+    "rtx 4080": GPUSpec("RTX 4080", 717.0, 195.0, 16.0),
     "rtx 4090": GPUSpec("RTX 4090", 1008.0, 330.0, 24.0),
     "t4": GPUSpec("NVIDIA T4", 320.0, 65.0, 16.0),
     "v100": GPUSpec("NVIDIA V100", 900.0, 125.0, 16.0),
@@ -89,6 +94,14 @@ class RooflineAnalysis(BaseModel):
     peak_mbu: float = 0.0
     peak_mfu: float = 0.0
     primary_regime: str = "Memory-Bandwidth Bound"
+    model_source: str = Field(
+        default="name guess",
+        description="'engine' if size came from the server, else guessed from the model name",
+    )
+    gpu_source: str = Field(
+        default="table", description="'table', 'user' (overrides) or 'generic guess'"
+    )
+    notes: list[str] = Field(default_factory=list, description="Caveats about these numbers")
 
 
 def estimate_model_params(model_name: str) -> tuple[float, float]:
@@ -170,6 +183,8 @@ def compute_roofline(
     gpu_name: str | None = None,
     custom_bandwidth_gb_s: float | None = None,
     custom_peak_tflops: float | None = None,
+    param_count_billions: float | None = None,
+    weights_gb: float | None = None,
 ) -> RooflineAnalysis:
     """Compute Roofline metrics across benchmark levels.
 
@@ -178,12 +193,35 @@ def compute_roofline(
     - output_tokens_per_s (float)
     - prompt_tokens_per_s (float, optional)
     """
+    notes: list[str] = []
     gpu = resolve_gpu_spec(gpu_name)
+    known = bool(gpu_name) and any(k in gpu_name.lower() for k in KNOWN_GPUS)
+    gpu_source = "table" if known else "generic guess"
+    if custom_bandwidth_gb_s or custom_peak_tflops:
+        gpu_source = "user"
+    elif not known:
+        notes.append(
+            f"GPU '{gpu_name or 'unknown'}' is not in the table: bandwidth and TFLOPS are generic "
+            "guesses. Pass --gpu-mem-bw and --gpu-tflops for meaningful MBU/MFU."
+        )
     bandwidth = custom_bandwidth_gb_s or gpu.memory_bandwidth_gb_s
     peak_tflops = custom_peak_tflops or gpu.peak_fp16_tflops
 
-    params, bytes_per_param = estimate_model_params(model_name)
-    model_size_gb = (params * 1e9 * bytes_per_param) / 1e9
+    guessed_params, guessed_bpp = estimate_model_params(model_name)
+    params = param_count_billions or guessed_params
+    if weights_gb:
+        model_size_gb = weights_gb
+        bytes_per_param = weights_gb / params
+    else:
+        bytes_per_param = guessed_bpp
+        model_size_gb = (params * 1e9 * bytes_per_param) / 1e9
+    model_source = "engine" if (param_count_billions and weights_gb) else "name guess"
+    if model_source == "name guess":
+        notes.append(
+            f"Model size guessed from the name '{model_name}' ({params:.2f}B params, "
+            f"{bytes_per_param:.2f} bytes/param); the server did not report it. MBU can be "
+            "off by several times (e.g. a 4-bit model guessed as 16-bit)."
+        )
 
     # Ridge point: arithmetic intensity where memory-bound transitions to compute-bound
     # (Peak FLOP/s) / (Bandwidth Bytes/s)
@@ -196,7 +234,7 @@ def compute_roofline(
     for lv in levels_data:
         c = int(lv.get("concurrency") or lv.get("value") or 1)
         out_tok_s = float(lv.get("output_tokens_per_s") or lv.get("throughput") or 0.0)
-        in_tok_s = float(lv.get("prompt_tokens_per_s") or (out_tok_s * 0.2))
+        in_tok_s = float(lv.get("prompt_tokens_per_s") or 0.0)
 
         # Decode phase calculations:
         # Each generated token at batch size 1 reads model weights once.
@@ -207,7 +245,6 @@ def compute_roofline(
         bytes_transferred_per_token_batch = (model_size_gb * 1e9) / max(1, c)
         achieved_bandwidth_gb_s = (out_tok_s * bytes_transferred_per_token_batch) / 1e9
         mbu = (achieved_bandwidth_gb_s / bandwidth) * 100.0 if bandwidth > 0 else 0.0
-        mbu = min(mbu, 100.0)
 
         # Prefill / Compute FLOPs calculation:
         # Forward pass FLOPs ≈ 2 * params per token
@@ -216,7 +253,6 @@ def compute_roofline(
         achieved_tflops = achieved_flops / 1e12
 
         mfu = (achieved_tflops / peak_tflops) * 100.0 if peak_tflops > 0 else 0.0
-        mfu = min(mfu, 100.0)
 
         # Arithmetic intensity = FLOPs / byte transferred
         ai = (2.0 * params * 1e9) / max(1.0, bytes_transferred_per_token_batch)
@@ -240,6 +276,14 @@ def compute_roofline(
         if mfu > peak_mfu:
             peak_mfu = mfu
 
+    if peak_mbu > 100 or peak_mfu > 100:
+        notes.append(
+            "MBU or MFU above 100% is physically impossible: the model size or the GPU's "
+            "bandwidth/TFLOPS used here is wrong for this setup."
+        )
+    if any(not lv.get("prompt_tokens_per_s") for lv in levels_data):
+        notes.append("Prompt throughput was not available; MFU counts generated tokens only.")
+
     primary_regime = "Memory-Bandwidth Bound"
     if points and sum(1 for p in points if p.regime == "Compute Bound") > len(points) / 2:
         primary_regime = "Compute Bound"
@@ -257,6 +301,9 @@ def compute_roofline(
         peak_mbu=round(peak_mbu, 1),
         peak_mfu=round(peak_mfu, 1),
         primary_regime=primary_regime,
+        model_source=model_source,
+        gpu_source=gpu_source,
+        notes=notes,
     )
 
 

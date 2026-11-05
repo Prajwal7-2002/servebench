@@ -173,8 +173,8 @@ servebench roofline [OPTIONS] [RUN_FILE]
 ```
 
 ### Options
-- `RUN_FILE`: Optional path to a `run.json` benchmark file.
-- `--model TEXT` / `-m`: Model identifier (e.g. `qwen2.5:0.5b`, `llama3:8b-q4_k_m`).
+- `RUN_FILE`: Path to a `run.json` from `servebench run` or `quick` (required). Model size and quantization come from the engine when it reported them (`environment.model_info`); otherwise they are guessed from the name and the output says so.
+- `--model TEXT` / `-m`: Model identifier used only for the name-based size guess (e.g. `llama3:8b-q4_k_m`).
 - `--gpu TEXT` / `--gpu-name` / `-g`: GPU device name override (e.g., `rtx 3050`, `a100`, `t4`).
 - `--bandwidth FLOAT` / `--gpu-mem-bw` / `-b`: Manual memory bandwidth override in GB/s.
 - `--peak-tflops FLOAT` / `--gpu-tflops`: Manual peak FP16/BF16 compute override in TFLOPs.

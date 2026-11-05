@@ -153,3 +153,19 @@
     metrics glossary, CI/CD guides, and serving engine tuning.
   - Verified multi-engine compatibility matrix across Ollama, llama.cpp, vLLM, SGLang, and LM Studio.
 
+
+## 2026-11-05: v1.1.4 - Real model metadata and an honest roofline
+
+An audit across the portfolio confirmed servebench's core measurements (201 tok/s and 43 ms TTFT for
+Ollama qwen2.5:0.5b vs Ollama's own 187-221 tok/s), but found its derived analyses guessed:
+
+- Every export from a day of sweeps had `engine: null` and `model_info: null`: the server was still
+  starting when `run` probed it once. Now re-probed after the run.
+- `roofline` guessed model size from the name: Ollama's `qwen2.5:0.5b` (Q4_K_M, 0.398 GB) was counted as
+  16-bit (0.99 GB), giving MBU > 100%, silently clamped to 100%. With engine-reported size the same sweep
+  gives 44.8% / 36.7% / 23.8% MBU at 1 / 2 / 4 users (189 / 310 / 403 tok/s, 168 GB/s spec).
+- Missing prompt throughput was invented as 20-25% of output throughput; `roofline` with no run file
+  printed made-up "representative" numbers; the README example matched no entry in the GPU table.
+- GPU table: RTX 3050 laptop had desktop TFLOPS; RTX 40-series (except 4090) used sparsity TFLOPS.
+- Tests: 152 -> 161; the new detection tests fail on the old code.
+- Not yet tested by hand: llama.cpp server and LM Studio metadata (covered by fake-server tests only).
