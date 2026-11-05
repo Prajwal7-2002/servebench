@@ -67,7 +67,7 @@ def identify(base_url: str, timeout: float = 1.0) -> Server | None:
         and h.get("engine") == "mini-infer"
     ):
         server.engine = "mini-infer"
-        server.version = "0.1.0"
+        server.version = h.get("version")
     elif isinstance(p := _get_json(f"{root}/props", timeout), dict) and (
         "default_generation_settings" in p or "total_slots" in p
     ):
@@ -109,22 +109,85 @@ def find_local(
     return [s for s in found if s is not None]
 
 
-def model_info(server: Server, model: str, timeout: float = 2.0) -> dict | None:
-    """Engine-specific facts about the model, read after a run (when it's loaded)."""
-    if server.engine != "Ollama":
-        return dict(server.details) or None
-    ps = _get_json(f"{_root(server.url)}/api/ps", timeout)
-    if not isinstance(ps, dict):
+def _post_json(url: str, body: dict, timeout: float) -> dict | None:
+    try:
+        req = urllib.request.Request(
+            url, json.dumps(body).encode(), {"Content-Type": "application/json"}
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            data = json.load(r)
+            return data if isinstance(data, dict) else None
+    except (urllib.error.URLError, OSError, ValueError):
         return None
-    for m in ps.get("models", []):
+
+
+def _ollama_info(root: str, model: str, timeout: float) -> dict | None:
+    info: dict = {}
+    show = _post_json(f"{root}/api/show", {"model": model}, timeout)
+    if show:
+        d = show.get("details") or {}
+        info["parameters"] = d.get("parameter_size")
+        info["quantization"] = d.get("quantization_level")
+        count = (show.get("model_info") or {}).get("general.parameter_count")
+        if isinstance(count, int | float) and count > 0:
+            info["parameter_count"] = int(count)
+    tags = _get_json(f"{root}/api/tags", timeout)
+    for m in tags.get("models", []) if isinstance(tags, dict) else []:
+        if m.get("name") == model or m.get("model") == model:
+            if m.get("size"):
+                info["weights_gb"] = round(m["size"] / 1e9, 3)  # file size of the weights
+            d = m.get("details") or {}
+            info.setdefault("parameters", d.get("parameter_size"))
+            info.setdefault("quantization", d.get("quantization_level"))
+    ps = _get_json(f"{root}/api/ps", timeout)
+    for m in ps.get("models", []) if isinstance(ps, dict) else []:
         if m.get("name") == model or m.get("model") == model:
             size, vram = m.get("size") or 0, m.get("size_vram") or 0
-            d = m.get("details") or {}
-            return {
-                "parameters": d.get("parameter_size"),
-                "quantization": d.get("quantization_level"),
-                "context_length": m.get("context_length"),
-                "size_gb": round(size / 2**30, 2) if size else None,
-                "on_gpu": f"{vram / size * 100:.0f}%" if size else None,
-            }
-    return None
+            info["context_length"] = m.get("context_length")
+            # Loaded size: weights + KV-cache + buffers (larger than weights_gb).
+            info["size_gb"] = round(size / 2**30, 2) if size else None
+            info["on_gpu"] = f"{vram / size * 100:.0f}%" if size else None
+    return {k: v for k, v in info.items() if v is not None} or None
+
+
+def _llamacpp_info(server: Server, model: str, timeout: float) -> dict:
+    info = dict(server.details)
+    listing = _get_json(f"{server.url}/models", timeout)
+    for m in listing.get("data", []) if isinstance(listing, dict) else []:
+        meta = m.get("meta") if isinstance(m, dict) else None
+        if isinstance(meta, dict):
+            if meta.get("n_params"):
+                info["parameter_count"] = int(meta["n_params"])
+            if meta.get("size"):
+                info["weights_gb"] = round(meta["size"] / 1e9, 3)
+            break
+    return info
+
+
+def _lmstudio_info(root: str, model: str, timeout: float) -> dict | None:
+    m = _get_json(f"{root}/api/v0/models/{model}", timeout)
+    if not isinstance(m, dict):
+        return None
+    info = {
+        "quantization": m.get("quantization"),
+        "architecture": m.get("arch"),
+        "context_length": m.get("max_context_length"),
+    }
+    return {k: v for k, v in info.items() if v is not None} or None
+
+
+def model_info(server: Server, model: str, timeout: float = 2.0) -> dict | None:
+    """Engine-reported facts about the model, read after a run (when it's loaded).
+
+    Where the engine reports them, ``parameter_count`` (exact) and ``weights_gb`` (bytes
+    of weights on disk / in memory) let analyses use real numbers instead of guessing
+    from the model's name.
+    """
+    root = _root(server.url)
+    if server.engine == "Ollama":
+        return _ollama_info(root, model, timeout)
+    if server.engine == "llama.cpp":
+        return _llamacpp_info(server, model, timeout) or None
+    if server.engine == "LM Studio":
+        return _lmstudio_info(root, model, timeout)
+    return dict(server.details) or None

@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.4] - 2026-11-05
+
+### Fixed
+- **Engine and model metadata were often missing.** Detection ran once before a run; a server still
+  starting up left `engine` and `model_info` empty in the export. servebench now retries after the run.
+- **Real model size from the engine**: Ollama (`/api/show`, `/api/tags`) and llama.cpp (`/v1/models` meta)
+  report the exact parameter count and weights size, saved as `model_info.parameter_count` and
+  `model_info.weights_gb`; LM Studio reports quantization and architecture. `model_info.size_gb` (Ollama)
+  is the loaded size including KV-cache, as before.
+- **`servebench roofline`**: uses the engine-reported size instead of guessing from the model name (which
+  counted 4-bit Ollama models as 16-bit), no longer invents prompt throughput, reports MBU/MFU above 100%
+  instead of clamping them, flags unknown GPUs and name-based guesses, and requires a run file instead of
+  showing made-up example numbers.
+- **GPU table**: RTX 3050 split into 6 GB laptop (168 GB/s), 4 GB laptop (192 GB/s) and desktop (224 GB/s,
+  36.4 TFLOPS); RTX 4050/4060/4070/4070 Ti/4080/4080 Super corrected from sparsity to dense TFLOPS.
+- mini-infer's version is no longer reported as a hard-coded "0.1.0".
+
 ## [1.1.0] - 2026-10-22
 
 ### Added

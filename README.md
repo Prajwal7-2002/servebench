@@ -20,7 +20,7 @@ No GPU or engine install is needed on the client: it is one async Python process
 
 > [!IMPORTANT]
 > **Our Mission**: *Safe, secure, and optimized for every machine.*  
-> Deploying and serving LLMs shouldn't require guessing concurrency numbers, tolerating latency spikes, or burning excess GPU energy. `servebench` provides researchers, developers, and autonomous agent engineers with exact MBU roofline telemetry, empirical bottlenecks, and automated auto-tuning to run local and cloud inference safely, reliably, and efficiently on any hardware.
+> Deploying and serving LLMs shouldn't require guessing concurrency numbers, tolerating latency spikes, or burning excess GPU energy. `servebench` provides researchers, developers, and autonomous agent engineers with measured latency and throughput, MBU/MFU roofline analysis, empirical bottlenecks, and automated auto-tuning to run local and cloud inference safely, reliably, and efficiently on any hardware.
 
 > [!TIP]
 > **Engineering Deep Dive**: Read our empirical case study on [Roofline Benchmarking & Auto-Tuning LLM Serving: How We Pushed Pure PyTorch to 27 tok/s](https://prajwal-pujari.vercel.app/blog/posts/roofline-serving-benchmarks.html) demonstrating saturation knee detection and 2.04 Tok/Joule energy scaling.
@@ -90,7 +90,7 @@ servebench check candidate.json --baseline baseline.json \
 servebench top --url http://127.0.0.1:11434/v1
 
 # hardware roofline model (MFU %, MBU %, operational intensity, ASCII curve)
-servebench roofline runs/ollama.json --gpu-name "RTX 3050 Laptop"
+servebench roofline runs/ollama.json
 
 # automated engine auto-tuner & launch flag generator
 servebench tune runs/ollama.json --engine ollama
@@ -129,29 +129,54 @@ Analyze whether your LLM serving bottleneck is **Memory-Bandwidth Bound** (typic
 - Built-in hardware specs database: NVIDIA RTX 3050–4090, A100, H100, T4, and Apple Silicon M-series.
 
 ```bash
-servebench roofline runs/ollama.json --gpu-name "RTX 3050 Laptop"
+servebench roofline runs/ollama.json
 ```
 
-Outputs an ASCII roofline curve and bottleneck verdict:
+Real output for Ollama 0.35.1 serving `qwen2.5:0.5b` (Q4_K_M) on an RTX 3050 6GB laptop, from a sweep at
+1, 2 and 4 users:
 
 ```text
-+------------------------------------------------------------+
-| Roofline Model: NVIDIA GeForce RTX 3050 Laptop (qwen2.5:0.5b)
-| Peak Bandwidth: 192 GB/s | Peak Compute: 14.6 TFLOPs | Ridge: 758.1 FLOP/B
-+------------------------------------------------------------+
-14.6 T |                                             ----------------
-       |                                            /
-       |                                           /
-       |                                          /
-       |                                         /
- 0.1 T |                 * (c=4)                /
-       |           * (c=1)                     /
-       +------------------------------------------------------
-      0.1        1.0       10.0      100.0     1000.0   (FLOPs/Byte)
++----------------------------------------------------------+
+| Roofline Model: RTX 3050 6GB Laptop (qwen2.5:0.5b)
+| Peak Bandwidth: 168 GB/s | Peak Compute: 24.0 TFLOPs | Ridge: 142.9 FLOP/B
++----------------------------------------------------------+
+|  24.0 T |                                      ----------|
+|        |                                  ////          |
+|        |                               ///              |
+|        |                           ////                 |
+|        |                        ///                     |
+|        |                     ///                        |
+|        |                 //*/                           |
+|  TFLOP |              /*/                               |
+|        |          *///                                  |
+|        |       ////                                     |
+|        |    ///                                         |
+|        |////                                            |
+|        |                                                |
+|  0.05 T |                                                |
++--------+------------------------------------------------+
+         0.5    FLOPs/Byte (Arithmetic Intensity)      572
 
 [Verdict] Operating in Memory-Bandwidth Bound regime.
-          Peak MBU: 51.0%  |  Peak MFU: 0.3%
+          Peak MBU: 44.8%  |  Peak MFU: 5.7%
+Model: 0.49B params, 0.40 GB weights (engine); GPU specs: table
+                          Roofline Breakdown: RTX 3050 6GB Laptop (qwen2.5:0.5b)                           
+ Concurrency  Throughput (tok/s)  Achieved TFLOPs  MBU (Memory %)  MFU (Compute %)  Regime                 
+      1                    189.2            0.605           44.8%             2.5%  Memory-Bandwidth Bound 
+      2                    310.2            1.003           36.7%             4.2%  Memory-Bandwidth Bound 
+      4                    402.5            1.358           23.8%             5.7%  Memory-Bandwidth Bound
 ```
+
+* **Model size comes from the engine** when it reports it (Ollama, llama.cpp; recorded in the run's
+  `environment.model_info`), so a 4-bit model is counted as 0.40 GB, not guessed as 16-bit from its name.
+  When servebench has to guess, it says so.
+* **GPU specs** are peak memory bandwidth and dense FP16 Tensor TFLOPS. Laptop memory clocks vary: if
+  yours is slower than the spec, pass `--gpu-mem-bw` (check with
+  `nvidia-smi --query-gpu=clocks.max.memory --format=csv`).
+* MBU or MFU above 100% is reported, not hidden: it means the model size or GPU specs used are wrong.
+* Versions before 1.1.4 guessed model size from the name only, invented prompt throughput when it was
+  missing, clamped MBU/MFU at 100%, listed the RTX 3050 laptop with desktop TFLOPS and several RTX 40
+  cards at their sparsity TFLOPS, and showed made-up example numbers when no run file was given.
 
 ## Production Auto-Tuning (`servebench tune`)
 

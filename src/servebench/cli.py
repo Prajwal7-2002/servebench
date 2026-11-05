@@ -172,6 +172,12 @@ class Setup:
 
     def after_run(self) -> None:
         """Ask the server about the model now that it's loaded (e.g. Ollama: on GPU?)."""
+        if self.server is None:
+            # Not detected at start (e.g. the server was still starting): try again now.
+            self.server = detect.identify(self.cfg.url)
+            if self.server:
+                self.env.engine = self.server.engine
+                self.env.engine_version = self.server.version
         if self.server:
             self.env.model_info = detect.model_info(self.server, self.cfg.model)
 
@@ -1242,7 +1248,14 @@ def roofline_cmd(
     levels_data = []
     effective_model = model
     effective_gpu = gpu
+    param_b: float | None = None
+    weights_gb: float | None = None
 
+    if run_file is None:
+        raise typer.BadParameter(
+            "pass a run file (servebench run/quick ... --out run.json): roofline analyses "
+            "measured throughput and has nothing to show without one"
+        )
     if run_file is not None:
         try:
             run = load_run(run_file)
@@ -1252,13 +1265,19 @@ def roofline_cmd(
                     effective_gpu = run.gpu_telemetry.device_name
                 elif run.environment.gpus:
                     effective_gpu = run.environment.gpus[0]
+            info = run.environment.model_info or {}
+            if info.get("parameter_count"):
+                param_b = info["parameter_count"] / 1e9
+            elif isinstance(info.get("parameters"), str):
+                param_b = _parse_param_size(info["parameters"])
+            weights_gb = info.get("weights_gb")
             for lv in run.levels:
                 out_t = (
                     getattr(lv.summary, "output_throughput", 0.0)
                     or getattr(lv.summary, "output_tokens_per_s", 0.0)
                     or 0.0
                 )
-                in_t = getattr(lv.summary, "input_throughput", None) or (out_t * 0.25)
+                in_t = getattr(lv.summary, "input_throughput", None)
                 levels_data.append(
                     {
                         "concurrency": int(lv.value),
@@ -1268,14 +1287,6 @@ def roofline_cmd(
                 )
         except Exception as e:
             raise typer.BadParameter(f"Could not load run file: {e}") from e
-    else:
-        # Default representative sweeps if no run file provided
-        levels_data = [
-            {"concurrency": 1, "output_tokens_per_s": 85.0},
-            {"concurrency": 2, "output_tokens_per_s": 145.0},
-            {"concurrency": 4, "output_tokens_per_s": 220.0},
-            {"concurrency": 8, "output_tokens_per_s": 240.0},
-        ]
 
     analysis = compute_roofline(
         model_name=effective_model,
@@ -1283,9 +1294,17 @@ def roofline_cmd(
         gpu_name=effective_gpu,
         custom_bandwidth_gb_s=bandwidth,
         custom_peak_tflops=peak_tflops,
+        param_count_billions=param_b,
+        weights_gb=weights_gb,
     )
 
     console.print(render_ascii_roofline(analysis))
+    console.print(
+        f"Model: {analysis.param_count_billions:.2f}B params, {analysis.model_size_gb:.2f} GB "
+        f"weights ({analysis.model_source}); GPU specs: {analysis.gpu_source}"
+    )
+    for note in analysis.notes:
+        console.print(f"[yellow]! {note}[/yellow]")
 
     t = Table(title=f"Roofline Breakdown: {analysis.gpu_name} ({analysis.model_name})", box=None)
     t.add_column("Concurrency", justify="center", style="cyan")
@@ -1305,6 +1324,16 @@ def roofline_cmd(
             f"[yellow]{pt.regime}[/yellow]" if "Memory" in pt.regime else f"[red]{pt.regime}[/red]",
         )
     console.print(t)
+
+
+def _parse_param_size(text: str) -> float | None:
+    """'494.03M' -> 0.494, '7.6B' -> 7.6 (billions); None if unparseable."""
+    t = text.strip().upper()
+    scale = {"K": 1e-6, "M": 1e-3, "B": 1.0, "T": 1e3}.get(t[-1:])
+    try:
+        return float(t[:-1]) * scale if scale else None
+    except ValueError:
+        return None
 
 
 @app.command("tune")

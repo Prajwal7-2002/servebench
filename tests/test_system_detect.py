@@ -77,27 +77,81 @@ def test_identify_engine_fingerprints(monkeypatch):
 
 
 def test_ollama_model_info(monkeypatch):
-    ps = {
-        "models": [
-            {
-                "name": "qwen2.5:0.5b",
-                "size": 481810185,
-                "size_vram": 481810185,
-                "context_length": 4096,
-                "details": {"parameter_size": "494.03M", "quantization_level": "Q4_K_M"},
-            }
-        ]
+    model = {
+        "name": "qwen2.5:0.5b",
+        "model": "qwen2.5:0.5b",
+        "details": {"parameter_size": "494.03M", "quantization_level": "Q4_K_M"},
     }
-    monkeypatch.setattr(detect, "_get_json", lambda url, timeout: ps)
+    routes = {
+        "/api/ps": {
+            "models": [model | {"size": 672399359, "size_vram": 672399359, "context_length": 4096}]
+        },
+        "/api/tags": {"models": [model | {"size": 397821319}]},
+    }
+    show = {
+        "details": model["details"],
+        "model_info": {"general.parameter_count": 494032768},
+    }
+    monkeypatch.setattr(
+        detect, "_get_json", lambda url, timeout: routes.get(url.split(":11434", 1)[1])
+    )
+    monkeypatch.setattr(
+        detect,
+        "_post_json",
+        lambda url, body, timeout: show if body["model"] == "qwen2.5:0.5b" else None,
+    )
     s = detect.Server(url="http://127.0.0.1:11434/v1", engine="Ollama")
     assert detect.model_info(s, "qwen2.5:0.5b") == {
         "parameters": "494.03M",
         "quantization": "Q4_K_M",
+        "parameter_count": 494032768,
+        "weights_gb": 0.398,  # weights file, from /api/tags
         "context_length": 4096,
-        "size_gb": 0.45,
+        "size_gb": 0.63,  # loaded: weights + KV-cache + buffers, from /api/ps
         "on_gpu": "100%",
     }
     assert detect.model_info(s, "other") is None
+
+
+def test_llamacpp_and_lmstudio_model_info(monkeypatch):
+    llama = {
+        "/v1/models": {"data": [{"id": "m", "meta": {"n_params": 1543714304, "size": 986048768}}]}
+    }
+    monkeypatch.setattr(
+        detect, "_get_json", lambda url, timeout: llama.get(url.split("127.0.0.1:8080", 1)[1])
+    )
+    s = detect.Server(url="http://127.0.0.1:8080/v1", engine="llama.cpp", details={"n_ctx": 4096})
+    assert detect.model_info(s, "m") == {
+        "n_ctx": 4096,
+        "parameter_count": 1543714304,
+        "weights_gb": 0.986,
+    }
+
+    lms = {
+        "/api/v0/models/qwen": {
+            "quantization": "Q4_K_M",
+            "arch": "qwen2",
+            "max_context_length": 32768,
+        }
+    }
+    monkeypatch.setattr(
+        detect, "_get_json", lambda url, timeout: lms.get(url.split("127.0.0.1:1234", 1)[1])
+    )
+    s = detect.Server(url="http://127.0.0.1:1234/v1", engine="LM Studio")
+    assert detect.model_info(s, "qwen") == {
+        "quantization": "Q4_K_M",
+        "architecture": "qwen2",
+        "context_length": 32768,
+    }
+
+
+def test_mini_infer_version_is_not_invented(monkeypatch):
+    routes = {"/v1/models": {"data": [{"id": "m"}]}, "/health": {"engine": "mini-infer"}}
+    monkeypatch.setattr(
+        detect, "_get_json", lambda url, timeout: routes.get(url.split("127.0.0.1:8000", 1)[1])
+    )
+    s = detect.identify("http://127.0.0.1:8000/v1")
+    assert s.engine == "mini-infer" and s.version is None
 
 
 def test_find_local_on_custom_ports(server):
@@ -141,3 +195,43 @@ def test_run_records_machine_and_server(server, tmp_path):
     assert server_text(run).startswith("servebench mock, mock-model")
     assert machine_text(run).startswith(e.cpu)
     json.loads(out.read_text())  # still plain JSON
+
+
+def test_engine_detected_after_run_if_server_was_not_ready(server, tmp_path, monkeypatch):
+    """Regression: detection ran once before the run; a server still starting up left
+    engine and model_info empty in the export."""
+    from typer.testing import CliRunner
+
+    from servebench.cli import app
+    from servebench.report import load_run
+
+    real_identify = detect.identify
+    calls = {"n": 0}
+
+    def flaky_identify(url, timeout=1.0):
+        calls["n"] += 1
+        return None if calls["n"] == 1 else real_identify(url, timeout)
+
+    monkeypatch.setattr(detect, "identify", flaky_identify)
+    server.cfg.ttft, server.cfg.itl = 0.01, 0.002
+    out = tmp_path / "r.json"
+    args = [
+        "run",
+        "--url",
+        server.url,
+        "--model",
+        "mock-model",
+        "--concurrency",
+        "1",
+        "--num-requests",
+        "2",
+        "--output-len",
+        "2",
+        "--warmup",
+        "0",
+        "--out",
+        str(out),
+    ]
+    res = CliRunner().invoke(app, args)
+    assert res.exit_code == 0, res.output
+    assert load_run(out).environment.engine == "servebench mock"
