@@ -807,34 +807,8 @@ def _capacity_search(
     return RunResult(label=label, config=c, environment=st.env, levels=levels_out, capacity=cap)
 
 
-@app.command()
-def quick(
-    url: Annotated[
-        str | None,
-        typer.Option(
-            help="OpenAI-compatible base URL; default: look for a local server (Ollama, "
-            "llama.cpp, LM Studio, vLLM, SGLang on their usual ports)"
-        ),
-    ] = None,
-    model: Annotated[
-        str | None,
-        typer.Option(help="Model to measure; default: the loaded one (Ollama) or the first listed"),
-    ] = None,
-    max_users: Annotated[
-        int, typer.Option("--max", help="Most users to try")
-    ] = quick_mod.QUICK_MAX_USERS,
-    slo_ttft_ms: SloTtft = 500.0,
-    slo_tpot_ms: SloTpot = 50.0,
-    api_key: ApiKey = None,
-    out: Annotated[
-        Path | None,
-        typer.Option(
-            help="Where to save the run (default: servebench-quick-<engine>-<model>.json)"
-        ),
-    ] = None,
-) -> None:
-    """Find your local LLM server, measure it for about a minute, and say how many users it
-    can serve. The no-setup way to start; use `find-capacity` / `run` for full control."""
+def _find_server_and_model(url: str | None, model: str | None) -> tuple[detect.Server, str]:
+    """The server at --url, or the first local one found; and the model to measure."""
     if url:
         server = detect.identify(url)
         if server is None:
@@ -867,6 +841,38 @@ def quick(
             "For Ollama: ollama pull qwen2.5:0.5b"
         )
         raise typer.Exit(1)
+    return server, model
+
+
+@app.command()
+def quick(
+    url: Annotated[
+        str | None,
+        typer.Option(
+            help="OpenAI-compatible base URL; default: look for a local server (Ollama, "
+            "llama.cpp, LM Studio, vLLM, SGLang on their usual ports)"
+        ),
+    ] = None,
+    model: Annotated[
+        str | None,
+        typer.Option(help="Model to measure; default: the loaded one (Ollama) or the first listed"),
+    ] = None,
+    max_users: Annotated[
+        int, typer.Option("--max", help="Most users to try")
+    ] = quick_mod.QUICK_MAX_USERS,
+    slo_ttft_ms: SloTtft = 500.0,
+    slo_tpot_ms: SloTpot = 50.0,
+    api_key: ApiKey = None,
+    out: Annotated[
+        Path | None,
+        typer.Option(
+            help="Where to save the run (default: servebench-quick-<engine>-<model>.json)"
+        ),
+    ] = None,
+) -> None:
+    """Find your local LLM server, measure it for about a minute, and say how many users it
+    can serve. The no-setup way to start; use `find-capacity` / `run` for full control."""
+    server, model = _find_server_and_model(url, model)
 
     st = _setup(
         url=server.url,
@@ -919,6 +925,107 @@ def quick(
     console.print(
         f"[dim]Saved {out}. Share it: servebench share {out}  |  full report: "
         f"servebench report {out} --out report.html[/dim]"
+    )
+
+
+@app.command()
+def submit(
+    url: Annotated[
+        str | None,
+        typer.Option(help="Base URL of a server on this machine; default: find a local one"),
+    ] = None,
+    model: Annotated[
+        str | None,
+        typer.Option(help="Model to measure; default: the loaded one (Ollama) or the first listed"),
+    ] = None,
+    api_key: ApiKey = None,
+    out: Annotated[
+        Path | None,
+        typer.Option(help="Where to save the result (default: runsonmine-<engine>-<model>.json)"),
+    ] = None,
+) -> None:
+    """Run the standard RunsOnMine test (1, 2 and 4 users) and save a result you can share.
+
+    The saved file holds only hardware model names, engine and model facts, the results and
+    the run conditions (power source, GPU clock and power): no hostnames, usernames, IPs,
+    URLs or prompts. It is printed in full before you share it."""
+    from . import submit as submit_mod
+
+    server, model = _find_server_and_model(url, model)
+    host = urlparse(server.url).hostname or ""
+    if host not in ("127.0.0.1", "localhost", "::1", "0.0.0.0"):
+        console.print(
+            "[red]submit measures the server on this machine[/red] (the result records this "
+            "computer's hardware). Run it on the machine that serves the model."
+        )
+        raise typer.Exit(1)
+
+    conditions = {"power_source": submit_mod.power_source()} | submit_mod.gpu_limits()
+    if conditions["power_source"] == "battery":
+        console.print(
+            "[yellow]! Running on battery: laptops usually cap the GPU, so the result will be "
+            "slow and flagged as throttled. Plug in for a representative result.[/yellow]"
+        )
+    t = submit_mod.STANDARD_TEST
+    st = _setup(
+        url=server.url,
+        model=model,
+        mode="concurrency",
+        levels=t["users"],
+        max_concurrency=None,
+        num_requests=t["requests_per_level"],
+        duration=None,
+        input_len=t["input_tokens"],
+        output_len=t["output_tokens"],
+        prompts="synthetic",
+        endpoint="chat",
+        ignore_eos=t["ignore_eos"],
+        temperature=t["temperature"],
+        warmup=t["warmup_requests"],
+        seed=t["seed"],
+        timeout=300.0,
+        slo_ttft_ms=500.0,
+        slo_tpot_ms=50.0,
+        tokenizer=None,
+        api_key=api_key,
+        notes="servebench submit",
+    )
+    engine = " ".join(x for x in (server.engine, server.version) if x)
+    console.print(f"servebench submit: {engine}, model {model}, standard test {t['users']} users")
+    try:
+        levels_out = asyncio.run(
+            run_sweep(
+                st.spec,
+                st.prompts_for,
+                "concurrency",
+                t["users"],
+                t["requests_per_level"],
+                warmup_requests=t["warmup_requests"],
+                timeout=300.0,
+                seed=t["seed"],
+                counter=st.counter,
+                on_level=_print_level,
+                gpu_telemetry=True,
+            )
+        )
+    except RuntimeError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1) from e
+    st.after_run()
+    run_res = RunResult(
+        label=f"submit {model}", config=st.cfg, environment=st.env, levels=levels_out
+    )
+    payload = submit_mod.build_payload(run_res, conditions)
+    out = out or Path(
+        "runsonmine-"
+        + quick_mod.default_out(server.engine, model).removeprefix("servebench-quick-")
+    )
+    out.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    console.print_json(json.dumps(payload))
+    console.print(
+        f"[bold]Saved {out}.[/bold] This is everything that would be shared. To add it to "
+        "RunsOnMine, open a pull request adding the file to data/results/ in "
+        "https://github.com/Prajwal7-2002/runsonmine (one-command upload is coming)."
     )
 
 

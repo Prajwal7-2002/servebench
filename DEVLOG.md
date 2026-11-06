@@ -169,3 +169,14 @@ Ollama qwen2.5:0.5b vs Ollama's own 187-221 tok/s), but found its derived analys
 - GPU table: RTX 3050 laptop had desktop TFLOPS; RTX 40-series (except 4090) used sparsity TFLOPS.
 - Tests: 152 -> 161; the new detection tests fail on the old code.
 - Not yet tested by hand: llama.cpp server and LM Studio metadata (covered by fake-server tests only).
+
+## 2026-11-06: v1.1.5 - `servebench submit` for RunsOnMine
+
+- New `submit` command: a fixed standard test whose result is shared with RunsOnMine, a public
+  database of measured local LLM speeds (github.com/Prajwal7-2002/runsonmine).
+- Payload builder (`submit.py`) is pure and allow-list based: only hardware model names, engine and
+  model facts, results and run conditions. A test fails if the file contains the hostname, username,
+  server address or a local path.
+- Run conditions exist because of a real incident: a laptop that had been on battery kept its GPU
+  capped at 10 W after being plugged in and measured 12x slower with no error. `submit` records the
+  power source, average/max GPU clock and the enforced power limit so RunsOnMine can flag such runs.

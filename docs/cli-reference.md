@@ -197,3 +197,24 @@ servebench tune [OPTIONS] [RUN_FILE]
 - `--url TEXT` / `-u`: Base URL of OpenAI-compatible server (default: `http://127.0.0.1:11434/v1`).
 - `--model TEXT` / `-m`: Model name when running automated sweep (default: `qwen2.5:0.5b`).
 
+---
+
+## 13. `servebench submit`
+
+Runs the standard RunsOnMine test against a server **on this machine** and saves a shareable result
+(format: [RunsOnMine result v1](https://github.com/Prajwal7-2002/runsonmine/blob/main/docs/format.md)).
+
+```bash
+servebench submit [OPTIONS]
+```
+
+### Options
+- `--url TEXT`: Base URL of a local server; default: find one (Ollama, llama.cpp, LM Studio, vLLM, SGLang ports).
+- `--model TEXT`: Model to measure; default: the loaded one (Ollama) or the first listed.
+- `--api-key TEXT`: Bearer token, if the server needs one.
+- `--out PATH`: Where to save the result (default: `runsonmine-<engine>-<model>.json`).
+
+The standard test is fixed (1, 2, 4 users; 16 requests per level; 256-token prompts; 128 output
+tokens; seed 1) so results are comparable. Remote servers are refused, because the result records
+this computer's hardware. Running on battery prints a warning; the result is flagged.
+
