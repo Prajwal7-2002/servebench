@@ -180,3 +180,13 @@ Ollama qwen2.5:0.5b vs Ollama's own 187-221 tok/s), but found its derived analys
 - Run conditions exist because of a real incident: a laptop that had been on battery kept its GPU
   capped at 10 W after being plugged in and measured 12x slower with no error. `submit` records the
   power source, average/max GPU clock and the enforced power limit so RunsOnMine can flag such runs.
+
+## 2026-11-07: v1.1.6 - submit watches the GPU that serves the model
+
+- First Kaggle results: Ollama put 3 of 5 models on the second T4 of "T4 x2" while `submit` monitored
+  the first, so those results showed an idle GPU (0% busy, 585 MHz). Speeds were fine; conditions
+  were wrong. `submit` now loads the model with a 1-token request, picks the GPU with the most memory
+  in use (`pick_serving_gpu`, pure and tested), monitors it, and records `hardware.serving_gpu` when
+  there are several GPUs.
+- Live check on the laptop (single GPU, on battery): no `serving_gpu` field, conditions recorded,
+  RunsOnMine flags it `battery`; on battery the 0.5B model did 146 tok/s vs 202 on AC.
