@@ -108,3 +108,41 @@ def test_probes_never_raise():
     assert submit.power_source() in ("ac", "battery", None)
     limits = submit.gpu_limits()
     assert set(limits) <= {"gpu_clock_max_mhz", "gpu_power_limit_w"}
+
+
+def test_pick_serving_gpu():
+    # Kaggle "T4 x2": Ollama loaded the model on the second GPU
+    assert submit.pick_serving_gpu("0, 3\n1, 2210\n") == 1
+    assert submit.pick_serving_gpu("0, 5100\n") == 0
+    assert submit.pick_serving_gpu("") is None
+    assert submit.pick_serving_gpu("garbage\n") is None
+
+
+def test_serving_gpu_recorded_only_with_several_gpus(server, tmp_path):
+    from servebench.report import load_run
+
+    server.cfg.ttft, server.cfg.itl = 0.005, 0.0005
+    out = tmp_path / "r.json"
+    args = [
+        "run",
+        "--url",
+        server.url,
+        "--model",
+        "mock-model",
+        "--concurrency",
+        "1",
+        "--num-requests",
+        "2",
+        "--output-len",
+        "2",
+        "--warmup",
+        "0",
+        "--out",
+        str(out),
+    ]
+    assert CliRunner().invoke(app, args).exit_code == 0
+    run = load_run(out)
+    run.environment.gpus = ["Tesla T4, 15.0 GB, driver 580.1", "Tesla T4, 15.0 GB, driver 580.1"]
+    assert submit.build_payload(run, serving_gpu=1)["hardware"]["serving_gpu"] == 1
+    run.environment.gpus = ["Tesla T4, 15.0 GB, driver 580.1"]
+    assert "serving_gpu" not in submit.build_payload(run, serving_gpu=0)["hardware"]

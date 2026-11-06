@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.6] - 2026-11-07
+
+### Fixed
+- `submit` on multi-GPU machines monitored GPU 0 even when the engine loaded the model on another
+  GPU (Kaggle "T4 x2": 3 of 5 runs reported an idle GPU). It now loads the model with one request,
+  monitors the GPU holding the most memory, and records it as `hardware.serving_gpu` (only when
+  there is more than one GPU, so single-GPU results are unchanged).
+- The battery warning named the wrong RunsOnMine flag.
+
 ## [1.1.5] - 2026-11-06
 
 ### Added

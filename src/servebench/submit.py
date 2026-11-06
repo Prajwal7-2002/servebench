@@ -8,9 +8,11 @@ no hostnames, usernames, IP addresses, URLs, prompts or file paths.
 
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 import sys
+import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -79,6 +81,52 @@ def power_source() -> str | None:
         return None
     except (OSError, ValueError, AttributeError, subprocess.SubprocessError):
         return None
+
+
+def load_model(url: str, model: str, api_key: str | None = None, timeout: float = 600.0) -> None:
+    """Send one 1-token request so the engine loads the model onto a GPU before we look."""
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    body = {"model": model, "messages": [{"role": "user", "content": "hi"}], "max_tokens": 1}
+    req = urllib.request.Request(
+        f"{url.rstrip('/')}/chat/completions", json.dumps(body).encode(), headers
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            r.read()
+    except OSError:
+        pass  # the sweep's own warm-up will report real problems
+
+
+def pick_serving_gpu(nvidia_smi_csv: str) -> int | None:
+    """Index of the GPU using the most memory, from `index, memory.used` CSV lines."""
+    best: tuple[float, int] | None = None
+    for line in nvidia_smi_csv.strip().splitlines():
+        parts = [x.strip() for x in line.split(",")]
+        try:
+            index, used = int(parts[0]), float(parts[1])
+        except (IndexError, ValueError):
+            continue
+        if best is None or used > best[0]:
+            best = (used, index)
+    return best[1] if best else None
+
+
+def serving_gpu() -> tuple[int, int]:
+    """(index of the GPU holding the loaded model, number of NVIDIA GPUs); (0, 0) if none."""
+    try:
+        out = subprocess.run(
+            ["nvidia-smi", "--query-gpu=index,memory.used", "--format=csv,noheader,nounits"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return 0, 0
+    count = len([line for line in out.strip().splitlines() if line.strip()])
+    index = pick_serving_gpu(out)
+    return (index if index is not None else 0), count
 
 
 def gpu_limits(index: int = 0) -> dict:
@@ -162,7 +210,7 @@ def _conditions(levels: list[LevelResult], extra: dict) -> dict:
     return {k: v for k, v in cond.items() if v is not None}
 
 
-def build_payload(run: RunResult, conditions: dict | None = None) -> dict:
+def build_payload(run: RunResult, conditions: dict | None = None, serving_gpu: int = 0) -> dict:
     """RunsOnMine result v1 from a finished standard-test run. Pure: no I/O."""
     env = run.environment
     if not env.local_server:
@@ -171,17 +219,16 @@ def build_payload(run: RunResult, conditions: dict | None = None) -> dict:
         )
     info = env.model_info or {}
     gpus = [_parse_gpu(g) for g in (env.gpus or [])]
+    hardware: dict = {"gpus": gpus}
+    if len(gpus) > 1:  # which GPU served the model and was monitored
+        hardware["serving_gpu"] = serving_gpu
+    hardware |= {"cpu": env.cpu, "ram_gb": env.ram_gb, "os": env.platform}
     return {
         "schema": SCHEMA,
         "date": datetime.now(UTC).date().isoformat(),
         "tool": {"name": "servebench", "version": __version__},
         "test": STANDARD_TEST,
-        "hardware": {
-            "gpus": gpus,
-            "cpu": env.cpu,
-            "ram_gb": env.ram_gb,
-            "os": env.platform,
-        },
+        "hardware": hardware,
         "engine": {"name": env.engine, "version": env.engine_version},
         "model": {"name": run.config.model} | {k: info[k] for k in _MODEL_FIELDS if k in info},
         "results": [_level(lv) for lv in run.levels],

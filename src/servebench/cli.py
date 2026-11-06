@@ -960,11 +960,18 @@ def submit(
         )
         raise typer.Exit(1)
 
-    conditions = {"power_source": submit_mod.power_source()} | submit_mod.gpu_limits()
+    # Load the model first, then watch the GPU it landed on (multi-GPU machines).
+    submit_mod.load_model(server.url, model, api_key)
+    gpu_index, gpu_count = submit_mod.serving_gpu()
+    if gpu_count > 1:
+        console.print(
+            f"[dim]{gpu_count} GPUs: monitoring GPU {gpu_index}, which holds the model[/dim]"
+        )
+    conditions = {"power_source": submit_mod.power_source()} | submit_mod.gpu_limits(gpu_index)
     if conditions["power_source"] == "battery":
         console.print(
             "[yellow]! Running on battery: laptops usually cap the GPU, so the result will be "
-            "slow and flagged as throttled. Plug in for a representative result.[/yellow]"
+            "slow and RunsOnMine flags it 'battery'. Plug in for a representative result.[/yellow]"
         )
     t = submit_mod.STANDARD_TEST
     st = _setup(
@@ -1006,6 +1013,7 @@ def submit(
                 counter=st.counter,
                 on_level=_print_level,
                 gpu_telemetry=True,
+                gpu_index=gpu_index,
             )
         )
     except RuntimeError as e:
@@ -1015,7 +1023,7 @@ def submit(
     run_res = RunResult(
         label=f"submit {model}", config=st.cfg, environment=st.env, levels=levels_out
     )
-    payload = submit_mod.build_payload(run_res, conditions)
+    payload = submit_mod.build_payload(run_res, conditions, serving_gpu=gpu_index)
     out = out or Path(
         "runsonmine-"
         + quick_mod.default_out(server.engine, model).removeprefix("servebench-quick-")
