@@ -146,3 +146,103 @@ def test_serving_gpu_recorded_only_with_several_gpus(server, tmp_path):
     assert submit.build_payload(run, serving_gpu=1)["hardware"]["serving_gpu"] == 1
     run.environment.gpus = ["Tesla T4, 15.0 GB, driver 580.1"]
     assert "serving_gpu" not in submit.build_payload(run, serving_gpu=0)["hardware"]
+
+
+def test_upload_payload_success(monkeypatch):
+    import io
+    import urllib.request
+
+    class MockResp(io.BytesIO):
+        status = 201
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    monkeypatch.setattr(
+        urllib.request,
+        "urlopen",
+        lambda req, timeout=20.0: MockResp(
+            b'{"status": "submitted", "id": "abc123", "pull_request": "https://github.com/pr/1"}'
+        ),
+    )
+    code, resp = submit.upload_payload({"test": "data"}, "http://mock/upload")
+    assert code == 201
+    assert resp["status"] == "submitted"
+    assert resp["pull_request"] == "https://github.com/pr/1"
+
+
+def test_upload_payload_duplicate(monkeypatch):
+    import io
+    import urllib.request
+
+    class MockResp(io.BytesIO):
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    monkeypatch.setattr(
+        urllib.request,
+        "urlopen",
+        lambda req, timeout=20.0: MockResp(b'{"status": "already-added", "id": "abc123"}'),
+    )
+    code, resp = submit.upload_payload({"test": "data"}, "http://mock/upload")
+    assert code == 200
+    assert resp["status"] == "already-added"
+
+
+def test_upload_payload_rejected(monkeypatch):
+    import io
+    import urllib.error
+
+    err = urllib.error.HTTPError(
+        url="http://mock/upload",
+        code=422,
+        msg="Unprocessable Entity",
+        hdrs={},
+        fp=io.BytesIO(b'{"status": "rejected", "errors": ["exceeds memory bandwidth"]}'),
+    )
+    monkeypatch.setattr(
+        urllib.request,
+        "urlopen",
+        lambda req, timeout=20.0: (_ for _ in ()).throw(err),
+    )
+    code, resp = submit.upload_payload({"test": "data"}, "http://mock/upload")
+    assert code == 422
+    assert resp["status"] == "rejected"
+    assert "exceeds memory bandwidth" in resp["errors"]
+
+
+def test_submit_cli_with_upload_flag(server, tmp_path, monkeypatch):
+    server.cfg.ttft, server.cfg.itl = 0.005, 0.0005
+    out = tmp_path / "result.json"
+
+    monkeypatch.setattr(
+        submit,
+        "upload_payload",
+        lambda payload, endpoint=None: (
+            201,
+            {"status": "submitted", "id": "abc", "pull_request": "https://github.com/test/pr/42"},
+        ),
+    )
+
+    args = [
+        "submit",
+        "--url",
+        server.url,
+        "--model",
+        "mock-model",
+        "--out",
+        str(out),
+        "--upload",
+    ]
+    res = CliRunner().invoke(app, args)
+    assert res.exit_code == 0, res.output
+    assert "Successfully submitted to RunsOnMine" in res.output
+    assert "https://github.com/test/pr/42" in res.output

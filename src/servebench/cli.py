@@ -943,6 +943,14 @@ def submit(
         Path | None,
         typer.Option(help="Where to save the result (default: runsonmine-<engine>-<model>.json)"),
     ] = None,
+    upload: Annotated[
+        bool,
+        typer.Option("--upload", help="Upload the result to RunsOnMine automatically"),
+    ] = False,
+    endpoint: Annotated[
+        str | None,
+        typer.Option("--endpoint", help="Custom RunsOnMine upload endpoint URL"),
+    ] = None,
 ) -> None:
     """Run the standard RunsOnMine test (1, 2 and 4 users) and save a result you can share.
 
@@ -1030,11 +1038,42 @@ def submit(
     )
     out.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     console.print_json(json.dumps(payload))
-    console.print(
-        f"[bold]Saved {out}.[/bold] This is everything that would be shared. To add it to "
-        "RunsOnMine, open a pull request adding the file to data/results/ in "
-        "https://github.com/Prajwal7-2002/runsonmine (one-command upload is coming)."
-    )
+    console.print(f"[bold]Saved {out}.[/bold] This is everything that would be shared.")
+
+    if upload:
+        target_url = endpoint or submit_mod.DEFAULT_UPLOAD_ENDPOINT
+        console.print(f"[bold cyan]Uploading to RunsOnMine ({target_url})...[/bold cyan]")
+        status, resp = submit_mod.upload_payload(payload, endpoint)
+        if status == 201:
+            console.print("[bold green]✓ Successfully submitted to RunsOnMine![/bold green]")
+            pr_url = resp.get("pull_request")
+            if pr_url:
+                console.print(f"Pull request: [link={pr_url}]{pr_url}[/link]")
+            if flags := resp.get("flags"):
+                console.print(f"[dim]Run flags: {', '.join(flags)}[/dim]")
+        elif status == 200:
+            rid = resp.get("id")
+            console.print(f"[bold cyan]Result already in RunsOnMine (ID: {rid}).[/bold cyan]")
+        elif status == 422:
+            console.print("[bold red]Submission rejected by RunsOnMine physics gate:[/bold red]")
+            for err in resp.get("errors", []):
+                console.print(f"  - [red]{err}[/red]")
+        elif status == 429:
+            console.print(
+                f"[yellow]Rate limit reached: {resp.get('error', 'Too many requests')}[/yellow]"
+            )
+        else:
+            err_msg = resp.get("error", "unknown error")
+            console.print(f"[yellow]Could not upload to RunsOnMine: {err_msg}[/yellow]")
+            console.print(
+                "You can submit manually by opening a pull request adding the file to "
+                "data/results/ in https://github.com/Prajwal7-2002/runsonmine"
+            )
+    else:
+        console.print(
+            "To submit automatically, re-run with [bold]--upload[/bold], or open a pull request "
+            "adding the file to data/results/ in https://github.com/Prajwal7-2002/runsonmine"
+        )
 
 
 @app.command()

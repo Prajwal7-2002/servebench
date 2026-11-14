@@ -12,6 +12,7 @@ import json
 import re
 import subprocess
 import sys
+import urllib.error
 import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
@@ -20,6 +21,7 @@ from . import __version__
 from .results import LevelResult, RunResult
 
 SCHEMA = "runsonmine/result/v1"
+DEFAULT_UPLOAD_ENDPOINT = "https://prajwalpujari16-runsonmine-upload.hf.space/v1/results"
 STANDARD_TEST = {
     "name": "standard-v1",
     "users": [1, 2, 4],
@@ -234,3 +236,38 @@ def build_payload(run: RunResult, conditions: dict | None = None, serving_gpu: i
         "results": [_level(lv) for lv in run.levels],
         "conditions": _conditions(run.levels, conditions or {}),
     }
+
+
+def upload_payload(
+    payload: dict,
+    endpoint: str | None = None,
+    timeout: float = 20.0,
+) -> tuple[int, dict]:
+    """Upload a RunsOnMine payload to the submission service.
+
+    Returns (http_status_code, response_json_dict).
+    """
+    url = endpoint or DEFAULT_UPLOAD_ENDPOINT
+    body = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=body,
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": f"servebench/{__version__}",
+            "Accept": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.load(resp)
+            return resp.status, data
+    except urllib.error.HTTPError as e:
+        try:
+            data = json.load(e)
+        except (ValueError, OSError):
+            data = {"error": str(e)}
+        return e.code, data
+    except urllib.error.URLError as e:
+        return 0, {"error": str(e.reason)}
