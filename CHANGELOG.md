@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.7] - 2026-11-26
+
+### Removed
+- Removed `--upload`, `--endpoint`, `DEFAULT_UPLOAD_ENDPOINT`, and `upload_payload` from
+  `servebench submit` until a free public upload endpoint is deployed (PR #16). `submit` saves
+  the verified JSON file locally and prints instructions to open a pull request to
+  `data/results/` in `Prajwal7-2002/runsonmine`.
+
 ## [1.1.6] - 2026-11-07
 
 ### Fixed
