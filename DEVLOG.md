@@ -190,3 +190,10 @@ Ollama qwen2.5:0.5b vs Ollama's own 187-221 tok/s), but found its derived analys
   there are several GPUs.
 - Live check on the laptop (single GPU, on battery): no `serving_gpu` field, conditions recorded,
   RunsOnMine flags it `battery`; on battery the 0.5B model did 146 tok/s vs 202 on AC.
+
+## 2026-11-26: v1.1.7 - Remove unimplemented upload flag from submit
+
+- Hugging Face Docker Spaces require a paid tier (HTTP 402), so `runsonmine-upload.hf.space` is
+  not deployed. Removed `--upload`, `--endpoint`, `DEFAULT_UPLOAD_ENDPOINT`, and `upload_payload`
+  from `servebench submit` (PR #16), pointing contributors directly to manual pull requests on
+  `Prajwal7-2002/runsonmine`.
